@@ -2,6 +2,7 @@
 //! securities. Laid out like `simplefin/` — HTTP, pure parsing and SQLite are
 //! separate files, so the parsing is fixture-testable with no network.
 pub mod benchmarks;
+pub mod chart;
 pub mod indices;
 pub mod nasdaq;
 pub mod nasdaq_parse;
@@ -183,6 +184,15 @@ pub fn refresh_all(db: &Db, src: &dyn MarketSource) -> MarketRefreshReport {
         report.earnings_updated = refresh_earnings(db, src, &targets, &now, &mut report.errors);
     }
 
+    refresh_board(db, src, &mut report);
+    report
+}
+
+/// Refresh only the board: indices, the VIX, yields and the sector funds.
+/// The whole board fits in one spark batch, so this is a single request — it
+/// can poll as often as prices do without spending the headlines' budget.
+/// Before it existed the board only moved with the 30-minute news poll.
+pub fn refresh_board(db: &Db, src: &dyn MarketSource, report: &mut MarketRefreshReport) {
     // The whole board in as few requests as the batch limit allows — one, today.
     let batches: Vec<(Vec<&str>, anyhow::Result<Vec<(String, Vec<(String, f64)>)>>)> = indices::INDICES
         .chunks(indices::SPARK_BATCH)
@@ -212,8 +222,6 @@ pub fn refresh_all(db: &Db, src: &dyn MarketSource) -> MarketRefreshReport {
             }
         }
     }
-
-    report
 }
 
 /// Store a run of benchmark closes and report how many this run wrote.
@@ -532,6 +540,20 @@ mod refresh_tests {
         let report = refresh_all(&db, &fake);
         assert_eq!(report.indices_updated, indices::INDICES.len() - 1);
         assert!(report.errors.iter().any(|e| e.contains("^VIX")), "{:?}", report.errors);
+    }
+
+    #[test]
+    fn a_board_refresh_is_one_request_and_fetches_no_headlines() {
+        // It polls every minute in market hours; anything per-holding here
+        // would multiply the request budget the way the news poll would.
+        let db = db_holding_mu();
+        let fake = Fake { db: &db, lock_was_held: Cell::new(false), calls: Cell::new(0), skip: None };
+        let mut report = MarketRefreshReport::default();
+        refresh_board(&db, &fake, &mut report);
+        assert_eq!(fake.calls.get(), 1);
+        assert_eq!(report.indices_updated, indices::INDICES.len());
+        assert_eq!(report.news_added, 0);
+        assert!(!fake.lock_was_held.get(), "a download ran with the database locked");
     }
 }
 

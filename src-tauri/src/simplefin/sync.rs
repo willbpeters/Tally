@@ -168,9 +168,12 @@ fn apply_account(
                market_value=excluded.market_value, as_of=excluded.as_of",
             params![account_id, sec.id, h.shares, h.cost_basis, h.market_value, sf.balance_date],
         )?;
+        // Only for a security Yahoo has never priced. Otherwise the row just
+        // repeats the last close under the sync date — on a weekend, under a
+        // day the market never traded — and the day change reads 0%.
         let has_yahoo: bool = tx.query_row(
-            "SELECT EXISTS(SELECT 1 FROM prices WHERE security_id=?1 AND date=?2 AND source='yahoo')",
-            params![sec.id, sf.balance_date],
+            "SELECT EXISTS(SELECT 1 FROM prices WHERE security_id=?1 AND source='yahoo')",
+            params![sec.id],
             |r| r.get(0),
         )?;
         if !has_yahoo && h.market_value > 0.0 {
@@ -307,6 +310,16 @@ mod tests {
         apply(&mut conn, &set).unwrap();
         let close: f64 = conn.query_row("SELECT close FROM prices WHERE security_id=?1 AND date='2026-09-07'", [sec.id], |r| r.get(0)).unwrap();
         assert_eq!(close, 999.0);
+    }
+
+    #[test]
+    fn writes_no_price_on_another_date_for_a_security_yahoo_prices() {
+        let mut conn = db::open_in_memory().unwrap();
+        let sec = crate::commands::securities::get_or_create(&conn, "VTI", None, "etf").unwrap();
+        crate::commands::prices::upsert(&conn, sec.id, "2026-09-04", 999.0, "yahoo").unwrap();
+        let set = SfAccountSet { errors: vec![], accounts: vec![account("brk1", 0.0, vec![holding("VTI", 10.0, 2000.0, 2500.0)])] };
+        apply(&mut conn, &set).unwrap();
+        assert_eq!(count(&conn, "SELECT count(*) FROM prices WHERE source='simplefin'"), 0);
     }
 
     #[test]

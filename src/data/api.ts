@@ -10,6 +10,8 @@ import type {
   Goal, NewGoal,
 } from "../domain/types";
 
+import type { ChartSeries, Timeframe } from "../domain/charts";
+
 export type { NewAccount, NewTransaction };
 import type { RowState } from "./undo";
 
@@ -56,6 +58,11 @@ export const api = {
     profiles: () => invoke<SecurityProfile[]>("market_profiles_list"),
     indices: () => invoke<IndexQuote[]>("market_indices"),
     refresh: () => invoke<MarketRefreshReport>("market_refresh"),
+    /** Only the indices, yields and sectors: one request, so it can poll often. */
+    boardRefresh: () => invoke<MarketRefreshReport>("market_board_refresh"),
+    /** Live price lines for one timeframe. Fetched, never stored. */
+    chart: (symbols: string[], timeframe: Timeframe) =>
+      invoke<ChartSeries[]>("market_chart", { symbols, timeframe }),
     indexHistory: () => invoke<[string, number][]>("market_index_history"),
     indexDepth: () => invoke<number>("market_index_depth"),
     indexBackfill: () => invoke<number>("market_index_backfill"),
@@ -113,11 +120,16 @@ export const api = {
     range: () => invoke<[string | null, string | null]>("bank_transactions_range"),
     setCategory: (id: number, categoryId: number | null, applyToPayee: boolean) =>
       invoke<number>("bank_transaction_set_category", { id, categoryId, applyToPayee }),
+    /** One category for many rows; split rows are left as they are. Returns rows changed. */
+    setCategoryMany: (ids: number[], categoryId: number | null) =>
+      invoke<number>("bank_transactions_set_category", { ids, categoryId }),
     /** Split across categories; no pieces unsplits. Refused unless they add up. */
     setSplits: (id: number, splits: NewSplit[]) =>
       invoke<void>("bank_transaction_set_splits", { id, splits }),
     /** The owner's note; a blank one clears it. */
     setNote: (id: number, note: string) => invoke<void>("bank_transaction_set_note", { id, note }),
+    /** Move it to another day. A bank sync keeps the date you set. */
+    setDate: (id: number, posted: string) => invoke<void>("bank_transaction_set_date", { id, posted }),
     /** Add one by hand (cash, say) to any spending account. Returns its id. */
     add: (txn: NewBankTxn) => invoke<number>("bank_transaction_add", { txn }),
     /** Only for one added by hand; a bank's is removed instead. */

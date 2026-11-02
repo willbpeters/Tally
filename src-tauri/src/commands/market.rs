@@ -39,6 +39,29 @@ pub async fn market_refresh(app: tauri::AppHandle) -> Result<market::MarketRefre
         .await
 }
 
+/// Just the board — indices, yields, sectors — in one request. Polled on the
+/// price cadence, so the Markets screen moves through the day.
+#[tauri::command]
+pub async fn market_board_refresh(app: tauri::AppHandle) -> Result<market::MarketRefreshReport, String> {
+    super::off_main_thread(move || {
+        let mut report = market::MarketRefreshReport::default();
+        market::refresh_board(&app.state::<Db>(), &market::LiveSource, &mut report);
+        Ok(report)
+    })
+    .await
+}
+
+/// Price lines for the Charts screen and the Dashboard chart, fetched live and
+/// never stored. `timeframe` is one of `chart::timeframe`'s names.
+#[tauri::command]
+pub async fn market_chart(symbols: Vec<String>, timeframe: String) -> Result<Vec<market::chart::ChartSeries>, String> {
+    super::off_main_thread(move || {
+        let tf = market::chart::timeframe(&timeframe).ok_or_else(|| format!("unknown timeframe: {timeframe}"))?;
+        market::chart::fetch(&symbols, &tf, chrono::Utc::now().timestamp()).map_err(|e| e.to_string())
+    })
+    .await
+}
+
 /// Two years of benchmark closes, oldest first, as (date, close).
 #[tauri::command]
 pub fn market_index_history(db: tauri::State<Db>) -> Result<Vec<(String, f64)>, String> {

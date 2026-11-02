@@ -1,9 +1,10 @@
 import { useEffect, useRef } from "react";
 import { PageHeader, Card, Button, Badge, EmptyState } from "../../ui/components";
 import { money, pct, timeAgo } from "../../ui/format";
-import { useMarketRefresh } from "../../data/queries";
+import { useMarketRefresh, useMarketBoardRefresh } from "../../data/queries";
 import { useRefreshPrices } from "../../data/useRefresh";
 import { planNextMarketTick } from "../../data/marketSchedule";
+import { planNextTick } from "../../data/refreshSchedule";
 import { useMarketView } from "./useMarketView";
 import { TodayBoard } from "./TodayBoard";
 import { SectorHeatmap } from "./SectorHeatmap";
@@ -71,6 +72,25 @@ export function Markets() {
     return () => window.clearTimeout(timer);
   }, []);
 
+  // The board — indices, yields, sectors — on the price cadence: once a minute
+  // while the market is open. It is one request, so unlike the headlines it
+  // need not wait half an hour; before this it only moved when they did.
+  const board = useMarketBoardRefresh();
+  const latestBoard = useRef(board);
+  latestBoard.current = board;
+  useEffect(() => {
+    let timer: number;
+    let cancelled = false;
+    const tick = () => {
+      const plan = planNextTick(new Date(), !document.hidden);
+      const next = () => { if (!cancelled) timer = window.setTimeout(tick, plan.delayMs); };
+      if (plan.fetch) latestBoard.current.mutate(undefined, { onSettled: next });
+      else next();
+    };
+    timer = window.setTimeout(tick, 0);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, []);
+
   return (
     <>
       <PageHeader subtitle="The market today, and what happened to what you own" />
@@ -87,7 +107,7 @@ export function Markets() {
               </p>}
           <p className="muted" style={{ fontSize: 12, marginTop: 4, marginBottom: 0 }}>
             {prices.isSuccess ? `Updated ${prices.data} prices. ` : ""}
-            Prices also refresh on their own: every few seconds during US market hours, every 15 minutes otherwise.
+            Prices and the board refresh on their own: every minute during US market hours, every 15 minutes otherwise.
           </p>
           {prices.isError && (
             <div className="notice neg" style={{ marginTop: 8 }}>

@@ -52,6 +52,17 @@ export function thisMonth(now: Date = new Date()): string {
 }
 
 /**
+ * One click of the month view's arrows, where null is every month at once. It
+ * sits just after this month: back from it is this month, and forward from
+ * this month comes back to it.
+ */
+export function stepMonth(month: string | null, by: 1 | -1, current: string = thisMonth()): string | null {
+  if (month == null) return by < 0 ? current : null;
+  const next = shiftMonth(month, by);
+  return by > 0 && next > current ? null : next;
+}
+
+/**
  * The limit in force for a category in a month: a figure set for that month
  * wins over the every-month default.
  */
@@ -76,7 +87,8 @@ export interface CategorySpend {
 }
 
 export interface MonthSummary {
-  month: string;
+  /** null for every month at once. */
+  month: string | null;
   spent: number;
   income: number;
   net: number;
@@ -90,7 +102,8 @@ export interface MonthSummary {
 }
 
 /**
- * What happened in one month.
+ * What happened in one month, or across every month when `month` is null.
+ * Limits are monthly, so every month at once has none.
  *
  * Spending is reported as a positive number, because "you spent $157" reads
  * better than "-157". A refund reduces its category rather than counting as
@@ -102,10 +115,11 @@ export function summariseMonth(
   txns: BankTransaction[],
   categories: Category[],
   budgets: Budget[],
-  month: string,
+  month: string | null,
 ): MonthSummary {
-  const { from, to } = monthWindow(month);
-  const inMonth = txns.filter((t) => t.posted >= from && t.posted <= to);
+  const window = month == null ? null : monthWindow(month);
+  const inMonth = window ? txns.filter((t) => t.posted >= window.from && t.posted <= window.to) : txns;
+  const limitOf = (categoryId: number) => (month == null ? null : limitFor(budgets, categoryId, month));
   const byId = new Map(categories.map((c) => [c.id, c]));
 
   const totals = new Map<number, { spent: number; count: number }>();
@@ -153,7 +167,7 @@ export function summariseMonth(
     .filter((c) => c.kind === "spending")
     .map((category) => {
       const { spent, count } = totals.get(category.id) ?? { spent: 0, count: 0 };
-      const limit = limitFor(budgets, category.id, month);
+      const limit = limitOf(category.id);
       return {
         category,
         spent,
@@ -169,7 +183,7 @@ export function summariseMonth(
   const spent = rows.reduce((s, r) => s + r.spent, 0);
   const budgeted = categories
     .filter((c) => c.kind === "spending")
-    .reduce((s, c) => s + (limitFor(budgets, c.id, month) ?? 0), 0);
+    .reduce((s, c) => s + (limitOf(c.id) ?? 0), 0);
 
   return {
     month, spent, income, net: income - spent, transferred, budgeted,

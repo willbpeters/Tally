@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useState } from "react";
-import { useSetTransactionCategory, useSetNote, useDeleteBankTransaction } from "../../data/queries";
+import { useSetTransactionCategory, useSetNote, useSetDate, useDeleteBankTransaction } from "../../data/queries";
 import { useOfferUndo } from "../../data/undo";
 import { useToast } from "../../ui/toast";
 import { askToConfirm } from "../../ui/confirm";
@@ -7,10 +7,12 @@ import { askToConfirm } from "../../ui/confirm";
 /** Added by the owner in Tally (cash, say), not by a bank or Copilot. */
 const isOwn = (t: BankTransaction) => t.external_id.startsWith("manual:");
 import { splitRemainder } from "../../domain/splits";
+import { monthLabel } from "../../domain/spending";
 import { money, fmtDate } from "../../ui/format";
 import { Badge } from "../../ui/components";
 import { CategoryPill, CategorySelect } from "../../ui/CategoryPill";
 import { SplitEditor } from "./SplitEditor";
+import { BulkBar } from "./BulkBar";
 import type { Account, BankTransaction, Category } from "../../domain/types";
 
 /**
@@ -18,12 +20,20 @@ import type { Account, BankTransaction, Category } from "../../domain/types";
  * marks that row as chosen by hand, and can teach Tally to do the same for
  * everything else from that payee. Split opens an editor beneath a row that
  * divides it across categories; a split row lists its pieces in place of the
- * picker.
+ * picker. Clicking a row's date moves it to another day.
+ *
+ * With `selectable`, each row has a box (shown on hover until one is ticked,
+ * then on every row); ticked rows get a bar along the bottom to change them
+ * all at once. Shift-click ticks a run of rows; Esc clears. With
+ * `monthHeaders`, a header row starts each month (rows come newest first).
  */
-export function TransactionList({ transactions, categories, accounts, onApprove, onRemove, onRestore }: {
+export function TransactionList({ transactions, categories, accounts, onApprove, onRemove, onRestore,
+  selectable = false, monthHeaders = false }: {
   transactions: BankTransaction[];
   categories: Category[];
   accounts: Account[];
+  selectable?: boolean;
+  monthHeaders?: boolean;
   /** Offered on the To review list: accept a row as it is. */
   onApprove?: (id: number) => void;
   /** Take a row out of Spending — the owner was paid back. Restorable. */
@@ -39,6 +49,9 @@ export function TransactionList({ transactions, categories, accounts, onApprove,
   // The row whose note is being written, and the text so far.
   const [noting, setNoting] = useState<{ id: number; text: string } | null>(null);
   const setNote = useSetNote();
+  // The row whose date is being changed, and the date picked so far.
+  const [dating, setDating] = useState<{ id: number; posted: string } | null>(null);
+  const setDate = useSetDate();
   const deleteTxn = useDeleteBankTransaction();
   const byId = new Map(categories.map((c) => [c.id, c]));
   const accountName = (id: number) => accounts.find((a) => a.id === id)?.name ?? "—";
@@ -47,8 +60,40 @@ export function TransactionList({ transactions, categories, accounts, onApprove,
   useEffect(() => {
     if (splitting != null && !transactions.some((t) => t.id === splitting)) setSplitting(null);
     if (noting != null && !transactions.some((t) => t.id === noting.id)) setNoting(null);
-  }, [transactions, splitting, noting]);
+    if (dating != null && !transactions.some((t) => t.id === dating.id)) setDating(null);
+  }, [transactions, splitting, noting, dating]);
   const openSplit = (id: number) => { setTeaching(null); setSplitting(id); };
+
+  // Ticked rows, and the last one clicked: the start of a shift-click run.
+  const [picked, setPicked] = useState<Set<number>>(() => new Set());
+  const [anchor, setAnchor] = useState<number | null>(null);
+  // Only rows still in the list count: one can leave it on a month change, a
+  // sync, or by being reviewed or removed.
+  const chosen = transactions.filter((t) => picked.has(t.id));
+  const selecting = chosen.length > 0;
+  const clearPicked = () => { setPicked(new Set()); setAnchor(null); };
+  // None left in the list (another month, say): start afresh rather than
+  // ticking them again on the way back.
+  useEffect(() => { if (picked.size > 0 && !selecting) clearPicked(); }, [picked, selecting]);
+  useEffect(() => {
+    if (!selecting) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") clearPicked(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selecting]);
+
+  function pick(id: number, on: boolean, run: boolean) {
+    const next = new Set(picked);
+    const from = transactions.findIndex((t) => t.id === anchor);
+    const to = transactions.findIndex((t) => t.id === id);
+    const ids = run && from >= 0 && to >= 0
+      ? transactions.slice(Math.min(from, to), Math.max(from, to) + 1).map((t) => t.id)
+      : [id];
+    for (const i of ids) { if (on) next.add(i); else next.delete(i); }
+    setPicked(next);
+    setAnchor(id);
+  }
+  const allPicked = selecting && chosen.length === transactions.length;
 
   async function deleteOwn(t: BankTransaction, name: string) {
     if (!(await askToConfirm(`Delete "${name}", ${money(t.amount)} on ${fmtDate(t.posted)}? You added it, so this can't be undone.`,
@@ -63,7 +108,17 @@ export function TransactionList({ transactions, categories, accounts, onApprove,
       onError: (e) => toast.push({ tone: "neg", title: "Note not saved", body: String(e) }),
     });
   }
-  const columns = 5 + (onApprove ? 1 : 0) + (onRemove || onRestore ? 1 : 0);
+
+  function saveDate(t: BankTransaction) {
+    if (!dating) return;
+    // Cleared, or picked the day it already has: nothing to save.
+    if (!dating.posted || dating.posted === t.posted) { setDating(null); return; }
+    setDate.mutate({ id: dating.id, posted: dating.posted }, {
+      onSuccess: () => setDating(null),
+      onError: (e) => toast.push({ tone: "neg", title: "Date not changed", body: String(e) }),
+    });
+  }
+  const columns = 5 + (selectable ? 1 : 0) + (onApprove ? 1 : 0) + (onRemove || onRestore ? 1 : 0);
 
   function choose(t: BankTransaction, categoryId: number | null) {
     const payee = t.payee?.trim();
@@ -80,9 +135,17 @@ export function TransactionList({ transactions, categories, accounts, onApprove,
 
   return (
     <div className="table-wrap">
-      <table>
+      <table className={selecting ? "selecting" : undefined}>
         <thead>
           <tr>
+            {selectable && (
+              <th className="select-cell">
+                {selecting && (
+                  <input type="checkbox" aria-label="Select all" checked={allPicked}
+                    onChange={() => (allPicked ? clearPicked() : setPicked(new Set(transactions.map((t) => t.id))))} />
+                )}
+              </th>
+            )}
             <th className="left">Date</th>
             <th className="left">Description</th>
             <th className="left">Account</th>
@@ -93,15 +156,42 @@ export function TransactionList({ transactions, categories, accounts, onApprove,
           </tr>
         </thead>
         <tbody>
-          {transactions.map((t) => {
+          {transactions.map((t, i) => {
+            const month = t.posted.slice(0, 7);
+            const startsMonth = monthHeaders && (i === 0 || transactions[i - 1].posted.slice(0, 7) !== month);
             const category = t.category_id == null ? null : byId.get(t.category_id) ?? null;
             const incoming = t.amount > 0;
             const name = t.payee ?? t.description;
             const remainder = splitRemainder(t);
             return (
               <Fragment key={t.id}>
-                <tr>
-                  <td className="left">{fmtDate(t.posted)}</td>
+                {startsMonth && (
+                  <tr className="month-row">
+                    <th className="left" colSpan={columns} scope="colgroup">{monthLabel(month)}</th>
+                  </tr>
+                )}
+                <tr className={picked.has(t.id) ? "picked" : undefined}>
+                  {selectable && (
+                    <td className="select-cell">
+                      <input type="checkbox" aria-label={`Select ${name}`} checked={picked.has(t.id)}
+                        onChange={(e) => pick(t.id, e.target.checked, (e.nativeEvent as MouseEvent).shiftKey)} />
+                    </td>
+                  )}
+                  <td className="left">
+                    {dating?.id === t.id ? (
+                      <div className="row center" style={{ gap: 6 }}>
+                        <input type="date" autoFocus value={dating.posted} aria-label={`Date for ${name}`}
+                          onChange={(e) => setDating({ id: t.id, posted: e.target.value })}
+                          onKeyDown={(e) => { if (e.key === "Enter") saveDate(t); if (e.key === "Escape") setDating(null); }} />
+                        <button className="btn btn-secondary btn-sm" onClick={() => saveDate(t)}>Save</button>
+                        <button className="btn btn-ghost btn-sm" onClick={() => setDating(null)}>Cancel</button>
+                      </div>
+                    ) : (
+                      <button className="note-text" aria-label={`Change date for ${name}: ${fmtDate(t.posted)}`}
+                        title="Change date" style={{ fontStyle: "normal", cursor: "pointer", whiteSpace: "nowrap" }}
+                        onClick={() => setDating({ id: t.id, posted: t.posted })}>{fmtDate(t.posted)}</button>
+                    )}
+                  </td>
                   <td className="left">
                     <div className="cell-primary">{name}</div>
                     {t.payee && t.description !== t.payee && (
@@ -237,6 +327,13 @@ export function TransactionList({ transactions, categories, accounts, onApprove,
           })}
         </tbody>
       </table>
+      {selecting && (
+        <>
+          {/* Room to scroll the last rows out from under the bar. */}
+          <div style={{ height: 72 }} />
+          <BulkBar selected={chosen} categories={categories} onClear={clearPicked} />
+        </>
+      )}
     </div>
   );
 }

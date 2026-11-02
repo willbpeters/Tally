@@ -5,7 +5,7 @@ import {
   useBankTransactionsToReview, useApproveTransactions, useSetRemoved,
   useRecurringDismissed, useSetRecurringDismissed,
 } from "../../data/queries";
-import { monthWindow, monthLabel, shiftMonth, thisMonth, summariseMonth, fromVisibleAccounts, inVisibleAccounts } from "../../domain/spending";
+import { monthWindow, monthLabel, stepMonth, thisMonth, summariseMonth, fromVisibleAccounts, inVisibleAccounts } from "../../domain/spending";
 import { inCategory } from "../../domain/splits";
 import { money } from "../../ui/format";
 import { Card, Button, EmptyState, Segmented } from "../../ui/components";
@@ -32,30 +32,40 @@ const NO_TXNS: BankTransaction[] = [];
 const NO_ACCOUNTS: Account[] = [];
 const NO_CATEGORIES: Category[] = [];
 
+/** Every month at once can be thousands of rows, each with a category picker. */
+const PAGE = 200;
+
 export function Spending() {
   // The command bar's search sends you here with ?q=…, straight into Search.
   const [params] = useSearchParams();
   const q = params.get("q") ?? "";
   const [view, setView] = useState<View>(q ? "search" : "month");
   useEffect(() => { if (q) setView("search"); }, [q]);
-  const [month, setMonth] = useState(thisMonth);
+  // The month the totals and categories cover; null is every month at once,
+  // one step right of this month on the arrows.
+  const [month, setMonth] = useState<string | null>(thisMonth);
+  // On this month (or all months) the list still shows every transaction,
+  // under a header per month: on the 1st, last night's charges are right there.
+  // An earlier month lists only its own.
+  const listAll = month == null || month === thisMonth();
   const [focus, setFocus] = useState<number | "uncategorised" | null>(null);
   const [adding, setAdding] = useState(false);
-  const { from, to } = monthWindow(month);
+  const [showing, setShowing] = useState(PAGE);
+  useEffect(() => { setShowing(PAGE); }, [month, focus]);
+  const { from, to } = month == null ? { from: "", to: "" } : monthWindow(month);
 
-  const { data: allTxns = [], isLoading } = useBankTransactions(from, to);
+  const { data: monthTxns = NO_TXNS, isLoading: loadingMonth } = useBankTransactions(from, to, month != null);
   const { data: categories = NO_CATEGORIES } = useCategories();
   const { data: budgets = [] } = useBudgets();
   const { data: allAccounts = NO_ACCOUNTS } = useAccounts();
   // A hidden account is out of every total, and spending is a total.
   const accounts = allAccounts.filter((a) => !a.hidden);
-  const txns = fromVisibleAccounts(allTxns, allAccounts);
   const { data: range, isLoading: loadingRange } = useBankTransactionRange();
 
-  // Search and Recurring cover every month, so they load the whole range,
-  // but only once one of them is opened. Both read the same cached query.
+  // Search, Recurring and the every-month list load the whole range, but only
+  // once one of them is open. All read the same cached query.
   const [first, last] = range ?? [null, null];
-  const everyMonth = view === "search" || view === "recurring";
+  const everyMonth = view === "search" || view === "recurring" || listAll;
   const { data: everyTxn = NO_TXNS, isLoading: loadingEvery } =
     useBankTransactions(first ?? "", last ?? "", everyMonth && first != null && last != null);
   const searchable = useMemo(() => fromVisibleAccounts(everyTxn, allAccounts), [everyTxn, allAccounts]);
@@ -63,6 +73,13 @@ export function Spending() {
   const recurringTxns = useMemo(() => inVisibleAccounts(everyTxn, allAccounts), [everyTxn, allAccounts]);
   // The every-month list is not ready until the range is known and then loaded.
   const loadingAll = everyMonth && (loadingRange || loadingEvery);
+  const isLoading = month == null ? loadingAll : loadingMonth;
+  const monthVisible = useMemo(() => fromVisibleAccounts(monthTxns, allAccounts), [monthTxns, allAccounts]);
+  // What the totals count, and what the list shows.
+  const txns = month == null ? searchable : monthVisible;
+  const listTxns = listAll ? searchable : monthVisible;
+  const allTxns = listAll ? everyTxn : monthTxns;
+  const loadingList = listAll ? loadingAll : loadingMonth;
 
   const { data: dismissedKeys, isLoading: loadingDismissed } = useRecurringDismissed();
   const dismissed = dismissedKeys ?? NO_KEYS;
@@ -80,7 +97,7 @@ export function Spending() {
   const hiddenAccounts = new Set(allAccounts.filter((a) => a.hidden || a.type === "brokerage").map((a) => a.id));
   const removedThisMonth = allTxns.filter((t) => t.removed && !hiddenAccounts.has(t.account_id));
   const offerUndo = useOfferUndo();
-  const byId = (id: number) => [...allTxns, ...allToReview, ...everyTxn].filter((t) => t.id === id).slice(0, 1);
+  const byId = (id: number) => [...allTxns, ...monthTxns, ...allToReview, ...everyTxn].filter((t) => t.id === id).slice(0, 1);
 
   async function removeOne(id: number) {
     if (askBeforeRemove()) {
@@ -110,7 +127,7 @@ export function Spending() {
   );
 
   // A split purchase shows under every category it was split into.
-  const shown = txns.filter((t) => focus == null || inCategory(t, focus));
+  const shown = listTxns.filter((t) => focus == null || inCategory(t, focus));
 
   const nothingImported = range !== undefined && range[0] == null;
 
@@ -131,7 +148,7 @@ export function Spending() {
       <div className="row center between" style={{ gap: 16 }}>
         <div className="row center" style={{ gap: 12 }}>
           <Segmented<View> value={view} onChange={setView} items={[
-            { value: "month", label: "Month" },
+            { value: "month", label: "Transactions" },
             { value: "review", label: `To review (${toReview.length})` },
             { value: "search", label: "Search" },
             { value: "recurring", label: "Recurring" },
@@ -139,11 +156,14 @@ export function Spending() {
           ]} />
           {view === "month" && (
             <div className="row center" style={{ gap: 8 }}>
-              <Button variant="ghost" size="sm" onClick={() => setMonth(shiftMonth(month, -1))} aria-label="Previous month">‹</Button>
-              <span className="serif" style={{ fontSize: 20, minWidth: 168, textAlign: "center" }}>{monthLabel(month)}</span>
-              <Button variant="ghost" size="sm" onClick={() => setMonth(shiftMonth(month, 1))} aria-label="Next month">›</Button>
+              <Button variant="ghost" size="sm" onClick={() => setMonth(stepMonth(month, -1))} aria-label="Previous month">‹</Button>
+              <span className="serif" style={{ fontSize: 20, minWidth: 168, textAlign: "center" }}>
+                {month == null ? "All months" : monthLabel(month)}
+              </span>
+              <Button variant="ghost" size="sm" onClick={() => setMonth(stepMonth(month, 1))} aria-label="Next month"
+                disabled={month == null}>›</Button>
               {month !== thisMonth() && (
-                <Button variant="ghost" size="sm" onClick={() => setMonth(thisMonth())}>Today</Button>
+                <Button variant="ghost" size="sm" onClick={() => setMonth(thisMonth())}>This month</Button>
               )}
             </div>
           )}
@@ -186,7 +206,7 @@ export function Spending() {
       ) : view === "review" ? (
         <Card
           title="To review"
-          subtitle="New transactions, and any Tally couldn't sort. Everything it sorted is already in the Month view. Choosing a category counts as reviewing it."
+          subtitle="New transactions, and any Tally couldn't sort. Everything it sorted is already under Transactions. Choosing a category counts as reviewing it."
           actions={toReview.length > 0 ? (
             <Button size="sm" loading={approve.isPending}
               onClick={() => approveSome(toReview.map((t) => t.id))}>
@@ -202,6 +222,7 @@ export function Spending() {
               categories={categories}
               accounts={accounts}
               onApprove={(id) => approveSome([id])}
+              selectable
               onRemove={removeOne}
             />
           )}
@@ -237,7 +258,9 @@ export function Spending() {
             </div>
           </div>
 
-          <Card title="Categories" subtitle="Click a category to filter the list below. Set a limit to track it.">
+          <Card title="Categories" subtitle={month == null
+            ? "Every month at once. Click a category to filter the list below; pick a month to set limits."
+            : "Click a category to filter the list below. Set a limit to track it."}>
             {isLoading ? <p className="muted">Loading…</p> : (
               <div style={{ display: "grid", gap: 4 }}>
                 {summary.categories.map((row) => (
@@ -257,7 +280,9 @@ export function Spending() {
             title="Transactions"
             actions={
               <div className="row center" style={{ gap: 10 }}>
-                <span className="muted" style={{ fontSize: 11 }}>{shown.length} in {monthLabel(month)}</span>
+                <span className="muted" style={{ fontSize: 11 }}>
+                  {shown.length} {listAll ? "in all months" : `in ${monthLabel(month!)}`}
+                </span>
                 {removedThisMonth.length > 0 && (
                   <button className="btn btn-ghost btn-sm" onClick={() => setShowRemoved(!showRemoved)}>
                     {showRemoved ? "Hide removed" : `Show removed (${removedThisMonth.length})`}
@@ -266,16 +291,28 @@ export function Spending() {
               </div>
             }
           >
-            {isLoading ? <p className="muted">Loading…</p> : shown.length === 0 ? (
+            {loadingList ? <p className="muted">Loading…</p> : shown.length === 0 ? (
               <EmptyState title="Nothing here"
-                body={focus == null ? "No transactions posted in this month." : "No transactions in that category this month."} />
+                body={listAll
+                  ? (focus == null ? "No transactions yet." : "No transactions in that category.")
+                  : (focus == null ? "No transactions posted in this month." : "No transactions in that category this month.")} />
             ) : (
-              <TransactionList
-                transactions={shown}
-                categories={categories}
-                accounts={accounts}
-                onRemove={removeOne}
-              />
+              <>
+                <TransactionList
+                  transactions={shown.slice(0, showing)}
+                  categories={categories}
+                  accounts={accounts}
+                  onRemove={removeOne}
+                  selectable
+                  monthHeaders={listAll}
+                />
+                {shown.length > showing && (
+                  <div className="row center" style={{ gap: 10, marginTop: 12 }}>
+                    <Button variant="secondary" size="sm" onClick={() => setShowing(showing + PAGE)}>Show more</Button>
+                    <span className="muted" style={{ fontSize: 11 }}>the newest {showing} of {shown.length}</span>
+                  </div>
+                )}
+              </>
             )}
             {showRemoved && removedThisMonth.length > 0 && (
               <div style={{ marginTop: 16 }}>

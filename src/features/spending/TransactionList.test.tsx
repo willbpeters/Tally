@@ -7,6 +7,9 @@ import type { Account, BankTransaction, Category } from "../../domain/types";
 // Category changes are saved through Tauri; record them instead.
 const setCategory = vi.hoisted(() => vi.fn());
 const setNote = vi.hoisted(() => vi.fn());
+const setDate = vi.hoisted(() => vi.fn());
+const approve = vi.hoisted(() => vi.fn());
+const setMany = vi.hoisted(() => vi.fn());
 const deleteTxn = vi.hoisted(() => vi.fn());
 const confirmed = vi.hoisted(() => ({ ok: true, asked: [] as string[] }));
 vi.mock("../../ui/confirm", async (importOriginal) => ({
@@ -17,6 +20,10 @@ vi.mock("../../data/queries", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../data/queries")>()),
   useSetTransactionCategory: () => ({ mutate: setCategory }),
   useSetNote: () => ({ mutate: setNote, isPending: false }),
+  useSetDate: () => ({ mutate: setDate }),
+  useApproveTransactions: () => ({ mutate: approve, isPending: false }),
+  useSetCategoryMany: () => ({ mutate: setMany, isPending: false }),
+  useSetRemoved: () => ({ mutate: vi.fn(), isPending: false }),
   useDeleteBankTransaction: () => ({ mutate: deleteTxn }),
 }));
 const { TransactionList } = await import("./TransactionList");
@@ -42,6 +49,95 @@ function renderList(props: Partial<Parameters<typeof TransactionList>[0]> = {}) 
     </ToastProvider></QueryClientProvider>,
   );
 }
+
+describe("TransactionList selection", () => {
+  const rows = [
+    txn({ id: 1, payee: "Alpha" }), txn({ id: 2, payee: "Bravo" }),
+    txn({ id: 3, payee: "Charlie", reviewed: true }), txn({ id: 4, payee: "Delta" }),
+  ];
+
+  it("has no boxes unless the list is selectable", () => {
+    renderList({ transactions: rows });
+    expect(screen.queryByLabelText("Select Alpha")).toBeNull();
+  });
+
+  it("shows the bar once a row is ticked and hides it on clear", () => {
+    renderList({ transactions: rows, selectable: true });
+    expect(screen.queryByRole("toolbar")).toBeNull();
+    fireEvent.click(screen.getByLabelText("Select Alpha"));
+    expect(screen.getByRole("toolbar", { name: "Selected transactions" })).toHaveTextContent("1 selected");
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByRole("toolbar")).toBeNull();
+  });
+
+  it("ticks a run with shift-click, and every row from the header box", () => {
+    renderList({ transactions: rows, selectable: true });
+    fireEvent.click(screen.getByLabelText("Select Alpha"));
+    fireEvent.click(screen.getByLabelText("Select Charlie"), { shiftKey: true });
+    expect(screen.getByRole("toolbar")).toHaveTextContent("3 selected");
+    fireEvent.click(screen.getByLabelText("Select all"));
+    expect(screen.getByRole("toolbar")).toHaveTextContent("4 selected");
+  });
+
+  it("marks only the unreviewed ones reviewed", () => {
+    approve.mockClear();
+    renderList({ transactions: rows, selectable: true });
+    fireEvent.click(screen.getByLabelText("Select Alpha"));
+    fireEvent.click(screen.getByLabelText("Select Delta"), { shiftKey: true });
+    fireEvent.click(screen.getByRole("button", { name: /Mark reviewed/ }));
+    expect(approve).toHaveBeenCalledWith([1, 2, 4], expect.anything());
+  });
+
+  it("gives every ticked row that isn't split the category picked", () => {
+    setMany.mockClear();
+    renderList({ transactions: [...rows, split({ id: 5, payee: "Echo" })], selectable: true, categories: [category, dining] });
+    fireEvent.click(screen.getByLabelText("Select Bravo"));
+    fireEvent.click(screen.getByLabelText("Select Echo"));
+    fireEvent.change(screen.getByLabelText("Categorize selected"), { target: { value: "2" } });
+    expect(setMany).toHaveBeenCalledWith({ ids: [2], categoryId: 2 }, expect.anything());
+  });
+});
+
+describe("TransactionList month headers", () => {
+  const rows = [
+    txn({ id: 1, posted: "2026-11-01" }), txn({ id: 2, posted: "2026-10-31" }), txn({ id: 3, posted: "2026-10-02" }),
+  ];
+
+  it("starts each month with its name", () => {
+    renderList({ transactions: rows, monthHeaders: true });
+    const headers = screen.getAllByRole("columnheader").map((h) => h.textContent).filter((t) => /20\d\d/.test(t ?? ""));
+    expect(headers).toEqual(["November 2026", "October 2026"]);
+  });
+
+  it("has none unless asked", () => {
+    renderList({ transactions: rows });
+    expect(screen.queryByText("October 2026")).toBeNull();
+  });
+});
+
+describe("TransactionList date", () => {
+  it("moves a row to the day picked", () => {
+    setDate.mockClear();
+    renderList();
+    fireEvent.click(screen.getByRole("button", { name: /Change date for Target/ }));
+    const input = screen.getByLabelText("Date for Target");
+    fireEvent.change(input, { target: { value: "2026-09-30" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(setDate).toHaveBeenCalledWith({ id: 7, posted: "2026-09-30" }, expect.anything());
+  });
+
+  it("saves nothing when the day is unchanged or the edit is cancelled", () => {
+    setDate.mockClear();
+    renderList();
+    fireEvent.click(screen.getByRole("button", { name: /Change date for Target/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    fireEvent.click(screen.getByRole("button", { name: /Change date for Target/ }));
+    fireEvent.change(screen.getByLabelText("Date for Target"), { target: { value: "2026-09-30" } });
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(setDate).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText("Date for Target")).toBeNull();
+  });
+});
 
 describe("TransactionList review", () => {
   it("marks a row that has not been reviewed", () => {

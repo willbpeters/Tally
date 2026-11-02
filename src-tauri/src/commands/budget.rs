@@ -214,6 +214,13 @@ pub fn bank_transactions_approve(db: tauri::State<Db>, ids: Vec<i64>) -> Result<
     store::approve(&conn, &ids).map_err(|e| e.to_string())
 }
 
+/// One category for every selected row; split rows are left as they are.
+#[tauri::command]
+pub fn bank_transactions_set_category(db: tauri::State<Db>, ids: Vec<i64>, category_id: Option<i64>) -> Result<usize, String> {
+    let conn = db.0.lock().unwrap_or_else(|e| e.into_inner());
+    store::set_category_many(&conn, &ids, category_id).map_err(|e| e.to_string())
+}
+
 /// Remove transactions from Spending and budgets, or restore them.
 #[tauri::command]
 pub fn bank_transactions_set_removed(db: tauri::State<Db>, ids: Vec<i64>, removed: bool) -> Result<usize, String> {
@@ -266,6 +273,25 @@ pub fn bank_transaction_set_note(db: tauri::State<Db>, id: i64, note: String) ->
 pub fn set_note(conn: &Connection, id: i64, note: &str) -> rusqlite::Result<()> {
     let note = Some(note.trim()).filter(|n| !n.is_empty());
     conn.execute("UPDATE bank_transactions SET note=?1 WHERE id=?2", params![note, id])?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn bank_transaction_set_date(db: tauri::State<Db>, id: i64, posted: String) -> Result<(), String> {
+    let conn = db.0.lock().unwrap_or_else(|e| e.into_inner());
+    set_date(&conn, id, &posted)
+}
+
+/// Move a transaction to another day: a charge that posted after midnight
+/// but belongs to last month, say. Bank syncs keep the owner's date.
+pub fn set_date(conn: &Connection, id: i64, posted: &str) -> Result<(), String> {
+    if chrono::NaiveDate::parse_from_str(posted, "%Y-%m-%d").is_err() || posted.len() != 10 {
+        return Err("Give a date like 2026-10-28.".into());
+    }
+    conn.execute(
+        "UPDATE bank_transactions SET posted=?1, posted_by_owner=1 WHERE id=?2",
+        params![posted, id],
+    ).map_err(|e| e.to_string())?;
     Ok(())
 }
 

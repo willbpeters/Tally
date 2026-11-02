@@ -7,10 +7,11 @@ import type { CategorySpend } from "../../domain/spending";
 /**
  * One category in the month view: what was spent, its limit, and how far
  * through that limit you are. Clicking the amount lets you set the limit.
+ * Every month at once (`month` null) has no limits to set.
  */
 export function BudgetRow({ row, month, selected, onSelect }: {
   row: CategorySpend;
-  month: string;
+  month: string | null;
   selected: boolean;
   onSelect: () => void;
 }) {
@@ -65,7 +66,7 @@ export function BudgetRow({ row, month, selected, onSelect }: {
             <button className="btn btn-primary btn-sm" onClick={save} disabled={setBudget.isPending}>Save</button>
             <button className="btn btn-ghost btn-sm" onClick={() => setEditing(false)}>Cancel</button>
           </span>
-        ) : (
+        ) : month != null && (
           <button className="btn btn-ghost btn-sm" onClick={() => setEditing(true)}
             style={{ minWidth: 118, justifyContent: "flex-end" }}>
             {row.limit == null

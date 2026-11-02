@@ -11,6 +11,8 @@ export function useRefreshPrices() {
       const updated = await api.prices.refresh();
       await qc.invalidateQueries({ queryKey: keys.latest });
       await qc.invalidateQueries({ queryKey: keys.previous });
+      // The Dashboard chart's last daily point is today's close.
+      await qc.invalidateQueries({ queryKey: ["prices", "history"] });
 
       // Recompute total value with the same derivation the screens use, then
       // record today's snapshot for the chart.

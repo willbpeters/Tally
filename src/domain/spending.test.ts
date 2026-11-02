@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { monthWindow, monthLabel, shiftMonth, summariseMonth, limitFor, fromVisibleAccounts, inVisibleAccounts } from "./spending";
+import { monthWindow, monthLabel, shiftMonth, stepMonth, summariseMonth, limitFor, fromVisibleAccounts, inVisibleAccounts } from "./spending";
 import type { Account, BankTransaction, Budget, Category } from "./types";
 
 const cats: Category[] = [
@@ -32,6 +32,14 @@ describe("month helpers", () => {
 
   it("labels a month for a human", () => {
     expect(monthLabel("2026-09")).toBe("September 2026");
+  });
+
+  it("puts every month at once just after this month on the arrows", () => {
+    expect(stepMonth(null, -1, "2026-11")).toBe("2026-11");
+    expect(stepMonth(null, 1, "2026-11")).toBeNull();
+    expect(stepMonth("2026-11", -1, "2026-11")).toBe("2026-10");
+    expect(stepMonth("2026-10", 1, "2026-11")).toBe("2026-11");
+    expect(stepMonth("2026-11", 1, "2026-11")).toBeNull();
   });
 });
 
@@ -95,6 +103,15 @@ describe("summariseMonth", () => {
   it("ignores transactions outside the month", () => {
     const s = summariseMonth([txn(-10, 1, "2026-08-31"), txn(-5, 1, "2026-09-01"), txn(-1, 1, "2026-10-01")], cats, [], "2026-09");
     expect(s.spent).toBe(5);
+  });
+
+  it("counts every month, with no limits, when there is no month", () => {
+    const budgets: Budget[] = [{ category_id: 1, month: null, limit_amount: 100 } as Budget];
+    const s = summariseMonth([txn(-10, 1, "2025-03-04"), txn(-5, 1, "2026-09-01"), txn(40, 3, "2026-10-01")], cats, budgets, null);
+    expect(s.spent).toBe(15);
+    expect(s.income).toBe(40);
+    expect(s.budgeted).toBe(0);
+    expect(s.categories.find((c) => c.category.id === 1)?.limit).toBeNull();
   });
 
   it("copes with no transactions at all", () => {

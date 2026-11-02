@@ -8,6 +8,7 @@ import { AppShell } from "./app/AppShell";
 import { Dashboard } from "./features/dashboard/Dashboard";
 import { Holdings } from "./features/holdings/Holdings";
 import { Markets } from "./features/markets/Markets";
+import { Charts } from "./features/charts/Charts";
 import { Accounts } from "./features/accounts/Accounts";
 import { Activity } from "./features/activity/Activity";
 import { Settings } from "./features/settings/Settings";
@@ -26,6 +27,7 @@ const router = createBrowserRouter([
       { index: true, element: <Dashboard /> },
       { path: "holdings", element: <Holdings /> },
       { path: "markets", element: <Markets /> },
+      { path: "charts", element: <Charts /> },
       { path: "accounts", element: <Accounts /> },
       { path: "activity", element: <Activity /> },
       { path: "spending", element: <Spending /> },

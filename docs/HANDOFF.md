@@ -90,7 +90,23 @@ budgeting and spending module.
   deletion (`bank_transactions_sync_delete`). With a category it is manual
   and reviewed; without, rules sort it and it waits in To review. In the list
   it says "Added by you", and its × deletes it after asking
-  (`bank_transaction_delete`, refused for any other row).
+  (`bank_transaction_delete`, refused for any other row). **Dates:** clicking
+  a row's date moves it to another day (`bank_transaction_set_date`). That sets
+  `posted_by_owner` (v14), and a bank sync then keeps the owner's date; device
+  sync carries it as the `posted` field (only for owner-set dates).
+  **Transactions view (2026-11-01):** the totals and categories open on this
+  month, but the list below shows every month, newest first, under a header
+  per month (`monthHeaders`; the newest 200, then "Show more"), so the 1st
+  still shows last night's charges. An earlier month lists only its own rows.
+  "All months" sits one step right of this month (`stepMonth`): all-time
+  totals, and no limits (`summariseMonth(…, null)`; BudgetRow hides "Set a
+  limit").
+  **Selecting many:** Transactions, To review and Search lists are
+  `selectable`: a box per row (on hover until one is ticked, then on every
+  row; shift-click ticks a run, the header box all, Esc clears). Ticked rows
+  get `BulkBar` along the bottom: Mark reviewed (unreviewed ones only),
+  Categorize as… (`bank_transactions_set_category`; split rows keep their
+  pieces) and Remove from spending, each with Undo.
   **No preset categories (2026-10-28):** a fresh database has none; they come
   from the owner or from the Copilot import. Only two are ever made by Tally
   itself, **Internal transfer** (kind `transfer`) and **Income** (kind
@@ -333,16 +349,29 @@ budgeting and spending module.
 - **Holdings**: overall table, a **per-account breakdown** below it, a **⚙
   column picker** (persisted to localStorage), and the Concentration and Market
   exposure cards at the bottom.
-- **Dashboard** (an overview since 2026-10-21): a big value chart whose four
-  tabs are the headline figures — **Net worth** (serif), **Investments**,
-  **Cash**, **Liabilities** — each picking the line plotted, with a 1M/3M range
-  picker; today and all time sit under the Investments tab because they measure
-  the **investments only**. Below it, an **Accounts** card (visible accounts
+- **Dashboard** (an overview since 2026-10-21): **Net worth** (serif) leads as
+  a figure only — it is mostly cash and card balances, which step once a day,
+  so it has no line (2026-11-02). Beside it, tabs for **Investments** (the
+  default), **Cash** and **Liabilities** pick the line plotted, over
+  1D/1W/1M/3M (`useValueSeries(tf)`: live bars laid over the stored closes via
+  `withIntraday`, then `reconstructSeries` with `keys`); today and all time
+  sit under the Investments tab because they measure the **investments only**.
+  Below it, an **Accounts** card (visible accounts
   grouped Brokerage / Cash / Credit cards, with group totals) and **Last 7
   days** (bank transactions and manual investment transactions, merged, newest
-  first, read-only). The Y axis zooms to the data rather than anchoring at
-  zero, and goes below zero when the line does. Spec:
+  first, read-only). Spec:
   `docs/superpowers/specs/2026-10-21-dashboard-overview-design.md`.
+- **Charts** (2026-11-02, `/charts`): today's holdings priced over
+  1D/1W/1M/3M/1Y/3Y/5Y/MAX, or one holding alone; the header follows the
+  cursor. Lines are fetched live by `market_chart` (`market/chart.rs`, spark
+  batches of 20, never stored), drawn by `ui/PriceChart.tsx` Robinhood-style:
+  straight segments, no fill, grid or axes. Bar sizes are in `timeframe()`
+  (~60–250 points; finer read as jitter, smoothing read as invented).
+  **Mutual funds have no intraday prices**, so on 1D/1W/1M each fund's day is
+  estimated from an ETF tracking the same index (`benchmarks::proxy_for`,
+  correlations in the comments) and snapped to the real NAV at the close
+  (`estimate_from_proxy`). Without that, a fund-heavy portfolio draws flat
+  days and cliffs. A fund with no ETF falls back to `betweenCloses`.
 - **Risk (Phase 1)**: a **Concentration** card on the Holdings page — largest
   holding, top-5 combined, cash share, and **effective positions**
   (`1 / Σwᵢ²`), which is how many equally-sized holdings the portfolio
@@ -601,6 +630,13 @@ pattern (manual / CSV / SimpleFIN), `secrets.rs`, and the single DB module.
   loss is `"($0.31)"`. Everything numeric goes through `nasdaq_parse::money`.
   The forecast response also carries **two** `rows` arrays — quarterly and
   yearly — and only the quarterly one is parsed.
+- **SimpleFIN price rows only stand in for tickers Yahoo cannot price.** A
+  sync writes market value ÷ shares under the sync date, weekends included;
+  read as "latest" they made every day change 0.0%. The price queries skip them
+  (`QUOTED` in `commands/prices.rs`) whenever a security has any other source,
+  and the sync no longer writes them for such securities. The Markets board
+  refreshes alone once a minute in market hours (`market_board_refresh`, one
+  request), not with the 30-minute headlines.
 - **`security_profile.quote_type` is what splits the Markets screen** into
   companies and funds. It is not a hardcoded ticker list, so it stays right as
   holdings change. A security with no profile yet is shown as a company rather

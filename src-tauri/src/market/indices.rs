@@ -81,14 +81,19 @@ pub fn fetch_history(symbol: &str) -> anyhow::Result<Vec<(String, f64)>> {
 /// `^` and `=` are percent-encoded by hand: they are legal in a query string,
 /// and leaving them to the HTTP client's judgement is how a symbol goes missing.
 pub fn spark_url(symbols: &[&str]) -> String {
-    let list = symbols
-        .iter()
-        .map(|sym| sym.trim().to_uppercase().replace('^', "%5E").replace('=', "%3D"))
-        .collect::<Vec<_>>()
-        .join(",");
+    let list = encode_symbols(symbols);
     format!(
         "https://query1.finance.yahoo.com/v7/finance/spark?symbols={list}&range={BOARD_RANGE}&interval=1d",
     )
+}
+
+/// Symbols as the spark endpoint's comma-separated `symbols=` list wants them.
+pub fn encode_symbols(symbols: &[&str]) -> String {
+    symbols
+        .iter()
+        .map(|sym| sym.trim().to_uppercase().replace('^', "%5E").replace('=', "%3D"))
+        .collect::<Vec<_>>()
+        .join(",")
 }
 
 /// Each symbol in a spark response with its closes, oldest first. A symbol

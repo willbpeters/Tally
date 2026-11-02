@@ -188,7 +188,7 @@ WHEN OLD.sync_key IS NOT NULL AND OLD.external_id LIKE 'manual:%' AND (SELECT ye
 END;
 
 CREATE TRIGGER bank_transactions_sync_update
-AFTER UPDATE OF category_id, category_source, note, reviewed, removed, name ON bank_transactions
+AFTER UPDATE OF category_id, category_source, note, reviewed, removed, name, posted ON bank_transactions
 WHEN (SELECT yes FROM sync_on) AND NEW.sync_key IS NOT NULL BEGIN
   INSERT INTO sync_outbox (tbl, key, field, value, at)
     SELECT 'bank_transactions', NEW.sync_key, 'category',
@@ -210,6 +210,10 @@ WHEN (SELECT yes FROM sync_on) AND NEW.sync_key IS NOT NULL BEGIN
   INSERT INTO sync_outbox (tbl, key, field, value, at)
     SELECT 'bank_transactions', NEW.sync_key, 'name', json_quote(NEW.name), {NOW}
     WHERE OLD.name IS NOT NEW.name;
+  -- Only a date the owner set: the bank's own reaches each computer by its sync.
+  INSERT INTO sync_outbox (tbl, key, field, value, at)
+    SELECT 'bank_transactions', NEW.sync_key, 'posted', json_quote(NEW.posted), {NOW}
+    WHERE NEW.posted_by_owner = 1 AND OLD.posted IS NOT NEW.posted;
 END;
 
 CREATE TRIGGER category_rules_sync_insert AFTER INSERT ON category_rules
@@ -577,6 +581,18 @@ mod tests {
         assert!(rows.contains(&(
             "bank_transactions".into(), "sf:ACT-1|TRN-1".into(), "reviewed".into(), Some("1".into())
         )), "{rows:?}");
+    }
+
+    #[test]
+    fn a_date_the_owner_moves_is_recorded_but_the_banks_is_not() {
+        let conn = enabled();
+        simplefin_txn(&conn);
+        conn.execute_batch("UPDATE bank_transactions SET posted='2026-10-02' WHERE id=1;").unwrap();
+        assert!(outbox(&conn).is_empty(), "{:?}", outbox(&conn));
+        crate::commands::budget::set_date(&conn, 1, "2026-09-30").unwrap();
+        assert_eq!(outbox(&conn), vec![(
+            "bank_transactions".into(), "sf:ACT-1|TRN-1".into(), "posted".into(), Some(r#""2026-09-30""#.into())
+        )]);
     }
 
     #[test]

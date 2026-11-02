@@ -1,40 +1,37 @@
-import { useMemo, useState } from "react";
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { localIsoDate } from "../../domain/dates";
-import { HISTORY_DAYS } from "../../data/useValueSeries";
-import { money, pct, fmtDate } from "../../ui/format";
+import { useState } from "react";
+import type { DashboardTimeframe } from "../../data/useValueSeries";
+import { money, pct } from "../../ui/format";
 import { Card, EmptyState, Segmented } from "../../ui/components";
-import { useChartColors } from "../../ui/chartColors";
+import { PriceChart } from "../../ui/PriceChart";
+import { useChartColors, type ChartColors } from "../../ui/chartColors";
+import { TIMEFRAMES } from "../../domain/charts";
 import type { PortfolioSummary, ValuePoint } from "../../domain/types";
 
 // Only windows the data can actually support: the series is rebuilt from
 // SimpleFIN holdings and transactions, which reach back about 90 days.
-type Range = "1m" | "3m";
-const WINDOW_DAYS: Record<Range, number> = { "1m": 30, "3m": HISTORY_DAYS };
+const DASHBOARD_TIMEFRAMES: DashboardTimeframe[] = ["1d", "1w", "1m", "3m"];
 
-/** Which line the value chart plots, and which tab is selected. */
-export type Mode = "networth" | "invested" | "cash" | "liabilities";
-export const MODE_ORDER: Mode[] = ["networth", "invested", "cash", "liabilities"];
+/**
+ * Which line the value chart plots, and which tab is selected. Net worth is
+ * not one: it is mostly cash and card balances, which change once a day, so
+ * its line could never move like a price chart. It stays as the headline.
+ */
+export type Mode = "invested" | "cash" | "liabilities";
+export const MODE_ORDER: Mode[] = ["invested", "cash", "liabilities"];
 
 const SHARE_CAVEAT = "Share counts are today’s — SimpleFIN does not report holdings history.";
 
-// The caveat has to change with the mode. The net-worth line really is rebuilt
-// from cash movements, so it must say so; the investments line is not, and
-// repeating the clause there would be untrue. The share-count caveat applies to
-// the two lines that contain holdings — today's synced share counts are assumed
-// to have been held throughout, which is what bounds the window to 90 days.
+// The caveat has to change with the mode. The share-count caveat belongs to the
+// investments line only — today's synced share counts are assumed to have been
+// held throughout, which is what bounds the window to 90 days.
 export const CHART_MODES: Record<Mode, { label: string; dataKey: keyof ValuePoint; subtitle: string }> = {
-  networth: {
-    label: "Net worth", dataKey: "value",
-    subtitle: `Rebuilt from your holdings, prices and cash movements. ${SHARE_CAVEAT}`,
-  },
   invested: {
     label: "Investments", dataKey: "invested",
-    subtitle: `Your holdings’ market value, rebuilt from daily closes. A deposit does not move this line. ${SHARE_CAVEAT}`,
+    subtitle: `Your holdings’ market value. Mutual funds move with the ETF that tracks the same index during the day, then settle to their real price at the close. A deposit does not move this line. ${SHARE_CAVEAT}`,
   },
   cash: {
     label: "Cash", dataKey: "cash",
-    subtitle: "Your cash balances, walked back from today through the transactions posted since. Brokerage cash is included.",
+    subtitle: "Your cash balances, walked back from today through the transactions posted since, so the line steps once a day. Brokerage cash is included.",
   },
   liabilities: {
     label: "Liabilities", dataKey: "liabilities",
@@ -42,77 +39,63 @@ export const CHART_MODES: Record<Mode, { label: string; dataKey: keyof ValuePoin
   },
 };
 
-/**
- * The Y axis floor. Zoomed to the data rather than anchored at zero, or a
- * portfolio that has never been near zero wastes most of the chart — but cash
- * can be overdrawn, so a negative minimum must stay on screen too.
- */
-export function yAxisMin(min: number): number {
-  return min >= 0 ? min * 0.97 : min * 1.03;
-}
-
 /** Today's figure for a tab. Liabilities stay negative here, as they enter net worth. */
 function figure(mode: Mode, s: PortfolioSummary): number {
   switch (mode) {
-    case "networth": return s.totalValue;
     case "invested": return s.investedValue;
     case "cash": return s.cash;
     case "liabilities": return s.liabilities;
   }
 }
 
-function clipSeries(series: ValuePoint[], range: Range): ValuePoint[] {
-  const days = WINDOW_DAYS[range];
-  if (series.length === 0) return series;
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - days);
-  const iso = localIsoDate(cutoff);
-  const clipped = series.filter((p) => p.date >= iso);
-  // Never show an empty chart just because the window is narrower than the data.
-  return clipped.length >= 2 ? clipped : series;
-}
-
-function ChartTip({ active, payload, label }: { active?: boolean; payload?: { value: number }[]; label?: string }) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="chart-tip">
-      <div className="muted">{fmtDate(String(label))}</div>
-      <strong className="n">{money(payload[0].value)}</strong>
-    </div>
-  );
+/**
+ * Investments are green when the line ends above where it started and red
+ * below, as a quote screen colours them. Cash and debt have no good direction
+ * to colour — more debt is not a gain — so they stay in the accent.
+ */
+function lineColor(mode: Mode, series: ValuePoint[], colors: ChartColors): string {
+  if (mode !== "invested" || series.length < 2) return colors.accent;
+  return series[series.length - 1].invested >= series[0].invested ? colors.pos : colors.neg;
 }
 
 const signed = (n: number, text: string) => `${n > 0 ? "+" : ""}${text}`;
 
 /**
- * The Dashboard's main card. Its tabs are the headline: each carries today's
- * figure for one measure and picks the line the chart plots. Investments +
- * Cash + Liabilities = Net worth, so the row is checkable by eye. Today and All
+ * The Dashboard's main card. Net worth leads as a figure; the tabs beside it
+ * each carry today's figure for one measure and pick the line the chart plots.
+ * Investments + Cash + Liabilities = Net worth, so the row is checkable by eye. Today and All
  * time sit under Investments because that is all they measure — a deposit
  * changes net worth and must never move them.
  */
-export function ValueCard({ summary, series: fullSeries }: { summary: PortfolioSummary; series: ValuePoint[] }) {
+export function ValueCard({ summary, series, timeframe, onTimeframe }: {
+  summary: PortfolioSummary;
+  /** Already windowed to the timeframe: see `useValueSeries`. */
+  series: ValuePoint[];
+  timeframe?: DashboardTimeframe;
+  onTimeframe?: (tf: DashboardTimeframe) => void;
+}) {
   const colors = useChartColors();
-  const [range, setRange] = useState<Range>("3m");
-  // Net worth is the default, so the screen opens as it always has.
-  const [mode, setMode] = useState<Mode>("networth");
-  const series = useMemo(() => clipSeries(fullSeries, range), [fullSeries, range]);
+  const [ownTimeframe, setOwnTimeframe] = useState<DashboardTimeframe>("3m");
+  const tf = timeframe ?? ownTimeframe;
+  const setTf = onTimeframe ?? setOwnTimeframe;
+  const [mode, setMode] = useState<Mode>("invested");
   const [dollars, cents] = money(summary.totalValue).split(".");
 
   return (
     <Card>
-      <div className="value-tabs" role="tablist">
+      <div className="value-tabs">
+        <div className="value-hero">
+          <span className="cap">Net worth</span>
+          <span className="hero-value">{dollars}<span className="hero-cents">.{cents}</span></span>
+        </div>
+        <div className="value-tablist" role="tablist">
         {MODE_ORDER.map((m) => {
           const fig = figure(m, summary);
           return (
             <button key={m} role="tab" aria-label={CHART_MODES[m].label} aria-selected={m === mode}
               onClick={() => setMode(m)}>
               <span className="cap">{CHART_MODES[m].label}</span>
-              {m === "networth" ? (
-                <span className="hero-value">{dollars}<span className="hero-cents">.{cents}</span></span>
-              ) : (
-                <span className={`n value-tab-figure${fig < 0 ? " neg" : ""}`}>{money(fig)}</span>
-              )}
+              <span className={`n value-tab-figure${fig < 0 ? " neg" : ""}`}>{money(fig)}</span>
               {m === "invested" && (
                 <span className="value-tab-sub">
                   <span className={summary.dayChange >= 0 ? "pos" : "neg"}>{signed(summary.dayChange, money(summary.dayChange))} today</span>
@@ -123,42 +106,22 @@ export function ValueCard({ summary, series: fullSeries }: { summary: PortfolioS
             </button>
           );
         })}
+        </div>
       </div>
 
       <div className="row between center" style={{ marginBottom: 6 }}>
         <div className="card-subtitle">{CHART_MODES[mode].subtitle}</div>
-        <Segmented<Range> value={range} onChange={setRange} items={[
-          { value: "1m", label: "1M" }, { value: "3m", label: "3M" },
-        ]} />
+        <Segmented<DashboardTimeframe> value={tf} onChange={setTf}
+          items={TIMEFRAMES.filter((t) => (DASHBOARD_TIMEFRAMES as string[]).includes(t.value))
+            .map((t) => ({ value: t.value as DashboardTimeframe, label: t.label }))} />
       </div>
 
       {series.length < 2 ? (
         <EmptyState title="Not enough price history yet"
           body="The chart is rebuilt from daily closes. Tally downloads them on first launch — if you have just connected an account, give it a moment and refresh." />
       ) : (
-        <ResponsiveContainer width="100%" height={380}>
-          <AreaChart data={series} margin={{ left: 0, right: 8, top: 8, bottom: 0 }}>
-            <defs>
-              <linearGradient id="valueFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={colors.accent} stopOpacity={0.16} />
-                <stop offset="100%" stopColor={colors.accent} stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid stroke={colors.grid} vertical={false} />
-            <XAxis dataKey="date" fontSize={10} stroke={colors.text} tickLine={false} axisLine={false} tickFormatter={fmtDate} minTickGap={40} />
-            <YAxis fontSize={10} stroke={colors.text} tickLine={false} axisLine={false} width={58}
-              domain={[yAxisMin, (max: number) => max * 1.02]}
-              // Below a thousand dollars, dividing by 1000 rounds every tick to $0k —
-              // and the investments and liabilities lines are the likeliest to be that small.
-              tickFormatter={(v) => {
-                const n = Number(v);
-                const sign = n < 0 ? "-" : "";
-                return Math.abs(n) < 1000 ? `${sign}$${Math.round(Math.abs(n))}` : `${sign}$${Math.round(Math.abs(n) / 1000)}k`;
-              }} />
-            <Tooltip content={<ChartTip />} cursor={{ stroke: colors.grid, strokeDasharray: "3 4" }} />
-            <Area type="monotone" dataKey={CHART_MODES[mode].dataKey} stroke={colors.accent} strokeWidth={1.9} fill="url(#valueFill)" />
-          </AreaChart>
-        </ResponsiveContainer>
+        <PriceChart tf={tf} color={lineColor(mode, series, colors)}
+          points={series.map((p) => ({ x: p.date, value: p[CHART_MODES[mode].dataKey] as number }))} />
       )}
     </Card>
   );

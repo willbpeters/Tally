@@ -227,6 +227,13 @@ fn bank_transactions(conn: &Connection, device: &str, c: &Change) -> rusqlite::R
             )?;
             Ok(n > 0)
         }
+        "posted" => {
+            let n = conn.execute(
+                "UPDATE bank_transactions SET posted=?1, posted_by_owner=1 WHERE sync_key=?2",
+                params![sql(&c.value), c.key],
+            )?;
+            Ok(n > 0)
+        }
         "splits" => splits(conn, c),
         _ => Ok(true),
     }
@@ -536,6 +543,16 @@ mod tests {
         let conn = applying();
         apply(&conn, "pc", &change("bank_transactions", "sf:ACT-1|TRN-1", "name", json!("Zqx Diner"), 20)).unwrap();
         assert_eq!(one::<String>(&conn, "SELECT name FROM bank_transactions"), "Zqx Diner");
+    }
+
+    #[test]
+    fn a_date_the_owner_set_travels_and_is_kept_from_the_bank() {
+        let conn = applying();
+        apply(&conn, "pc", &change("bank_transactions", "sf:ACT-1|TRN-1", "posted", json!("2026-10-31"), 20)).unwrap();
+        let (posted, by_owner): (String, i64) = conn
+            .query_row("SELECT posted, posted_by_owner FROM bank_transactions", [], |r| Ok((r.get(0)?, r.get(1)?)))
+            .unwrap();
+        assert_eq!((posted.as_str(), by_owner), ("2026-10-31", 1));
     }
 
     #[test]

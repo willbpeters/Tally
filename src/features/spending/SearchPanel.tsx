@@ -93,6 +93,7 @@ export function SearchPanel({ initialText = "", transactions, loading, categorie
             categories={categories}
             accounts={accounts}
             onRemove={onRemove}
+            selectable
           />
         </>
       )}

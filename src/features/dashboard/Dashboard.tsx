@@ -1,8 +1,8 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { localIsoDate } from "../../domain/dates";
 import { usePortfolio } from "../../data/usePortfolio";
 import { useBankTransactions, useSecurities, useTransactions } from "../../data/queries";
-import { useValueSeries } from "../../data/useValueSeries";
+import { useValueSeries, type DashboardTimeframe } from "../../data/useValueSeries";
 import { accountOverview, activityWindowStart, recentActivity } from "../../domain/overview";
 import { ValueCard } from "./ValueCard";
 import { AccountsCard } from "./AccountsCard";
@@ -17,7 +17,8 @@ const ACTIVITY_DAYS = 7;
  */
 export function Dashboard() {
   const { summary, byAccount, accounts, isLoading } = usePortfolio();
-  const { series } = useValueSeries();
+  const [timeframe, setTimeframe] = useState<DashboardTimeframe>("3m");
+  const { series } = useValueSeries(timeframe);
   const today = localIsoDate();
   const { data: bankTxns = [] } = useBankTransactions(activityWindowStart(today, ACTIVITY_DAYS), today);
   const { data: txns = [] } = useTransactions();
@@ -33,7 +34,7 @@ export function Dashboard() {
 
   return (
     <>
-      <ValueCard summary={summary} series={series} />
+      <ValueCard summary={summary} series={series} timeframe={timeframe} onTimeframe={setTimeframe} />
       <AccountsCard groups={groups} />
       <RecentActivityCard rows={activity} />
     </>

@@ -333,3 +333,30 @@ describe("reconstructSeries — cash and liabilities", () => {
     for (const p of s) expect(p.value).toBeCloseTo(p.invested + p.cash - p.liabilities, 6);
   });
 });
+
+describe("reconstructSeries — intraday keys", () => {
+  const brokerage = acct(1, "Brokerage", "brokerage", "manual", null);
+  const txns: Transaction[] = [
+    { id: 1, account_id: 1, security_id: 10, type: "deposit", date: "2026-09-01",
+      quantity: 0, price: 0, amount: 1000, fees: 0, note: null },
+    { id: 2, account_id: 1, security_id: 10, type: "buy", date: "2026-09-05",
+      quantity: 2, price: 100, amount: 200, fees: 0, note: null },
+  ];
+  const prices = [
+    price(10, "2026-09-04", 100),
+    price(10, "2026-09-05T09:30", 100), price(10, "2026-09-05T12:00", 110),
+  ];
+  const keys = ["2026-09-05T09:30", "2026-09-05T12:00"];
+
+  it("values each bar time, today's included, and nothing else", () => {
+    const s = reconstructSeries({ ...base, accounts: [brokerage], txns, synced: [], bankTxns: [], prices, keys });
+    expect(s.map((p) => p.date)).toEqual(keys);
+    // 800 cash + 2 shares at the bar's price.
+    expect(s.map((p) => p.value)).toEqual([1000, 1020]);
+  });
+
+  it("counts a transaction from its day's first bar", () => {
+    const s = reconstructSeries({ ...base, accounts: [brokerage], txns, synced: [], bankTxns: [], prices, keys });
+    expect(s[0].invested).toBe(200);
+  });
+});

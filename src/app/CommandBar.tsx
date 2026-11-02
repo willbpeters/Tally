@@ -14,6 +14,7 @@ const TITLES: { path: string; title: string }[] = [
   { path: "/spending", title: "Spending" },
   { path: "/goals", title: "Goals" },
   { path: "/markets", title: "Markets" },
+  { path: "/charts", title: "Charts" },
   { path: "/settings", title: "Settings" },
 ];
 

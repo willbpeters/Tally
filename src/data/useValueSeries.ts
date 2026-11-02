@@ -2,8 +2,10 @@ import { useMemo } from "react";
 import { localIsoDate } from "../domain/dates";
 import {
   useAccounts, useTransactions, useSyncedHoldings, useBankTransactions, usePriceHistoryRows,
+  useSecurities, useMarketChart,
 } from "./queries";
 import { reconstructSeries, type PriceRow } from "../domain/history";
+import { localKey, timeline, withIntraday, type Timeframe } from "../domain/charts";
 import type { ValuePoint } from "../domain/types";
 
 /**
@@ -16,30 +18,68 @@ import type { ValuePoint } from "../domain/types";
  */
 export const HISTORY_DAYS = 90;
 
+/** The Dashboard's timeframes: only those the 90 days above can support. */
+export type DashboardTimeframe = Extract<Timeframe, "1d" | "1w" | "1m" | "3m">;
+
+/** Calendar days each timeframe covers, for the daily line used when live bars are unavailable. */
+const WINDOW_DAYS: Record<DashboardTimeframe, number> = { "1d": 1, "1w": 7, "1m": 30, "3m": HISTORY_DAYS };
+
 function isoDaysAgo(days: number, now: Date = new Date()): string {
   const d = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
   d.setUTCDate(d.getUTCDate() - days);
   return d.toISOString().slice(0, 10);
 }
 
+/** The daily line trimmed to a timeframe — but never below two points just because the window is narrow. */
+function clip(series: ValuePoint[], days: number): ValuePoint[] {
+  const cutoff = isoDaysAgo(days);
+  const clipped = series.filter((p) => p.date >= cutoff);
+  return clipped.length >= 2 ? clipped : series.slice(-2);
+}
+
 /**
- * The portfolio's value day by day, rebuilt from holdings, prices and cash
- * movements rather than read back from the daily snapshots.
+ * The portfolio's value over a timeframe, rebuilt from holdings, prices and
+ * cash movements rather than read back from the daily snapshots.
+ *
+ * Holdings are priced from live intraday bars — every 2 minutes for a day, up
+ * to hourly for three months — so the line moves the way a quote screen's
+ * does. Cash and card balances only change when a transaction posts, so they
+ * step once a day between those bars. When the bars cannot be fetched the
+ * line falls back to one point per trading day from the stored closes.
  */
-export function useValueSeries(days: number = HISTORY_DAYS): { series: ValuePoint[]; isLoading: boolean } {
+export function useValueSeries(tf: DashboardTimeframe = "3m"): { series: ValuePoint[]; isLoading: boolean; live: boolean } {
   const today = localIsoDate();
-  const from = isoDaysAgo(days);
+  const from = isoDaysAgo(HISTORY_DAYS);
 
   const { data: accounts = [], isLoading: l1 } = useAccounts();
   const { data: txns = [], isLoading: l2 } = useTransactions();
   const { data: synced = [], isLoading: l3 } = useSyncedHoldings();
   const { data: bankTxns = [], isLoading: l4 } = useBankTransactions(from, today);
   const { data: rows = [], isLoading: l5 } = usePriceHistoryRows(from);
+  const { data: securities = [] } = useSecurities();
 
-  const series = useMemo(() => {
-    const prices: PriceRow[] = rows.map(([security_id, date, close]) => ({ security_id, date, close }));
-    return reconstructSeries({ accounts, txns, synced, bankTxns, prices, today, days });
-  }, [accounts, txns, synced, bankTxns, rows, today, days]);
+  const held = useMemo(() => {
+    const ids = new Set<number>([
+      ...synced.map((h) => h.security_id),
+      ...txns.filter((t) => t.security_id != null && (t.type === "buy" || t.type === "sell"))
+        .map((t) => t.security_id as number),
+    ]);
+    return securities.filter((s) => ids.has(s.id));
+  }, [synced, txns, securities]);
+  const tickers = useMemo(() => held.map((s) => s.ticker), [held]);
+  const { data: bars } = useMarketChart(tickers, tf);
 
-  return { series, isLoading: l1 || l2 || l3 || l4 || l5 };
+  const result = useMemo(() => {
+    const daily: PriceRow[] = rows.map(([security_id, date, close]) => ({ security_id, date, close }));
+    const inputs = { accounts, txns, synced, bankTxns, today, days: HISTORY_DAYS };
+    if (bars && bars.length > 0) {
+      const idFor = new Map(held.map((s) => [s.ticker.toUpperCase(), s.id]));
+      const keys = timeline(bars).map(localKey);
+      const series = reconstructSeries({ ...inputs, prices: withIntraday(daily, bars, idFor, tf), keys });
+      if (series.length >= 2) return { series, live: true };
+    }
+    return { series: clip(reconstructSeries({ ...inputs, prices: daily }), WINDOW_DAYS[tf]), live: false };
+  }, [accounts, txns, synced, bankTxns, rows, today, bars, held, tf]);
+
+  return { ...result, isLoading: l1 || l2 || l3 || l4 || l5 };
 }

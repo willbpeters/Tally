@@ -76,17 +76,18 @@ pub fn upsert_transactions(
 
         match existing {
             Some((id, source)) => {
+                // A date the owner set stays: the bank's is what they moved it from.
                 if source == "manual" {
                     conn.execute(
-                        "UPDATE bank_transactions SET posted=?1, amount=?2, description=?3,
-                           payee=?4, memo=?5, mcc=?6, pending=?7 WHERE id=?8",
+                        "UPDATE bank_transactions SET posted=CASE WHEN posted_by_owner=1 THEN posted ELSE ?1 END,
+                           amount=?2, description=?3, payee=?4, memo=?5, mcc=?6, pending=?7 WHERE id=?8",
                         params![t.posted, t.amount, t.description, t.payee, t.memo, t.mcc, t.pending as i64, id],
                     )?;
                 } else {
                     let category = resolve(conn, categorize::decide(&candidate(t, &account_type), rules))?;
                     conn.execute(
-                        "UPDATE bank_transactions SET posted=?1, amount=?2, description=?3,
-                           payee=?4, memo=?5, mcc=?6, pending=?7, category_id=?8 WHERE id=?9",
+                        "UPDATE bank_transactions SET posted=CASE WHEN posted_by_owner=1 THEN posted ELSE ?1 END,
+                           amount=?2, description=?3, payee=?4, memo=?5, mcc=?6, pending=?7, category_id=?8 WHERE id=?9",
                         params![t.posted, t.amount, t.description, t.payee, t.memo, t.mcc, t.pending as i64, category, id],
                     )?;
                 }
@@ -107,7 +108,8 @@ pub fn upsert_transactions(
                 ).optional()?;
                 if let Some(id) = adopted {
                     conn.execute(
-                        "UPDATE bank_transactions SET external_id=?1, posted=?2, amount=?3, description=?4,
+                        "UPDATE bank_transactions SET external_id=?1,
+                           posted=CASE WHEN posted_by_owner=1 THEN posted ELSE ?2 END, amount=?3, description=?4,
                            payee=?5, memo=?6, mcc=?7, pending=?8 WHERE id=?9",
                         params![t.external_id, t.posted, t.amount, t.description, t.payee, t.memo, t.mcc, t.pending as i64, id],
                     )?;
@@ -167,6 +169,23 @@ pub fn set_category(
         params![category_id, txn_id],
     )?;
     let changed = apply_payee_rule(&tx, txn_id, category_id, apply_to_payee)?;
+    tx.commit()?;
+    Ok(changed)
+}
+
+/// One category for many rows at once, chosen by hand and so reviewed. A split
+/// row keeps its pieces: one category over them would undo the split, and Undo
+/// can't bring pieces back. Returns how many rows changed.
+pub fn set_category_many(conn: &Connection, ids: &[i64], category_id: Option<i64>) -> rusqlite::Result<usize> {
+    let tx = conn.unchecked_transaction()?;
+    let mut changed = 0;
+    for id in ids {
+        changed += tx.execute(
+            "UPDATE bank_transactions SET category_id=?1, category_source='manual', reviewed=1
+             WHERE id=?2 AND NOT EXISTS (SELECT 1 FROM bank_transaction_splits s WHERE s.txn_id = ?2)",
+            params![category_id, id],
+        )?;
+    }
     tx.commit()?;
     Ok(changed)
 }
@@ -965,6 +984,26 @@ mod tests {
     }
 
     #[test]
+    fn a_date_the_owner_set_survives_a_later_sync() {
+        let conn = seeded();
+        let a = account(&conn, "Card", "credit");
+        upsert_transactions(&conn, a, &[txn("t1", -10.0, "Shop", None), txn("t2", -4.0, "Cafe", None)], &[]).unwrap();
+        let id: i64 = conn.query_row("SELECT id FROM bank_transactions WHERE external_id='t1'", [], |r| r.get(0)).unwrap();
+        crate::commands::budget::set_date(&conn, id, "2026-08-31").unwrap();
+        let mut moved = txn("t1", -10.0, "Shop", None);
+        moved.posted = "2026-09-02".into();
+        let mut other = txn("t2", -4.0, "Cafe", None);
+        other.posted = "2026-09-02".into();
+        upsert_transactions(&conn, a, &[moved, other], &[]).unwrap();
+        let posted = |ext: &str| -> String {
+            conn.query_row("SELECT posted FROM bank_transactions WHERE external_id=?1", [ext], |r| r.get(0)).unwrap()
+        };
+        assert_eq!(posted("t1"), "2026-08-31");
+        assert_eq!(posted("t2"), "2026-09-02", "the bank still moves a row the owner left alone");
+        assert!(crate::commands::budget::set_date(&conn, id, "31/08/2026").is_err());
+    }
+
+    #[test]
     fn a_manual_category_survives_a_later_sync() {
         let conn = seeded();
         let a = account(&conn, "Card", "credit");
@@ -1252,6 +1291,21 @@ mod tests {
         upsert_transactions(conn, card, &[payee_txn("c1", "2026-10-03", -85.5, "Costco")], &[]).unwrap();
         let id = conn.query_row("SELECT id FROM bank_transactions WHERE external_id='c1'", [], |r| r.get(0)).unwrap();
         (card, id)
+    }
+
+    #[test]
+    fn many_rows_take_one_category_but_a_split_row_keeps_its_pieces() {
+        let conn = seeded();
+        let (card, split_id) = costco(&conn);
+        upsert_transactions(&conn, card, &[payee_txn("t2", "2026-10-04", -9.0, "Cafe")], &[]).unwrap();
+        let id: i64 = conn.query_row("SELECT id FROM bank_transactions WHERE external_id='t2'", [], |r| r.get(0)).unwrap();
+        set_splits(&conn, split_id, &[piece(&conn, Some("Groceries"), -60.0), piece(&conn, Some("Shopping"), -25.5)]).unwrap();
+
+        let dining = seed::category_id(&conn, "Dining").unwrap();
+        assert_eq!(set_category_many(&conn, &[id, split_id], dining).unwrap(), 1);
+
+        assert_eq!(row(&conn, "t2"), (Some("Dining".into()), "manual".into(), true));
+        assert_eq!(splits_of(&conn, "c1").len(), 2);
     }
 
     #[test]

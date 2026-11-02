@@ -19,6 +19,12 @@ export interface HistoryInputs {
   today: string;
   /** How many days back to reconstruct. */
   days: number;
+  /**
+   * The instants to value at, as dates or `localKey` times. Defaults to every
+   * date with a stored close; the Dashboard passes intraday bar times instead,
+   * with intraday prices among `prices` under the same keys.
+   */
+  keys?: string[];
 }
 
 /**
@@ -90,8 +96,12 @@ export function reconstructSeries(i: HistoryInputs): ValuePoint[] {
   }
 
   const from = shiftDays(i.today, -i.days);
-  const dates = [...new Set(i.prices.map((p) => p.date))]
-    .filter((d) => d >= from && d <= i.today)
+  // A key may carry a time after its date ("2026-10-30T10:30"), so only its
+  // date is held against today. Keys and transaction dates compare as plain
+  // strings either way: a transaction dated the 30th counts from the 30th's
+  // first bar.
+  const dates = [...new Set(i.keys ?? i.prices.map((p) => p.date))]
+    .filter((d) => d >= from && d.slice(0, 10) <= i.today)
     .sort();
 
   const series: ValuePoint[] = [];

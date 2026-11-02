@@ -3,6 +3,8 @@ import type { CategoryKind, NewBankTxn, NewGoal, NewSplit } from "../domain/type
 import { api, type NewAccount, type NewTransaction } from "./api";
 import { writeLastSync, clearLastSync } from "./lastSync";
 import { MIN_HISTORY_DAYS } from "../domain/risk";
+import { isIntraday, type Timeframe } from "../domain/charts";
+import { isUsMarketOpen } from "./refreshSchedule";
 
 export const keys = {
   accounts: ["accounts"] as const,
@@ -206,6 +208,14 @@ export function useSetTransactionCategory() {
     onSuccess: () => invalidateSpending(qc),
   });
 }
+export function useSetCategoryMany() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { ids: number[]; categoryId: number | null }) =>
+      api.bankTransactions.setCategoryMany(v.ids, v.categoryId),
+    onSuccess: () => invalidateSpending(qc),
+  });
+}
 /** Splitting changes what each category holds, like a category change. */
 export function useSetSplits() {
   const qc = useQueryClient();
@@ -288,6 +298,13 @@ export function useSetNote() {
     onSuccess: () => invalidateSpending(qc),
   });
 }
+export function useSetDate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { id: number; posted: string }) => api.bankTransactions.setDate(v.id, v.posted),
+    onSuccess: () => invalidateSpending(qc),
+  });
+}
 export function useDeleteRule() {
   const qc = useQueryClient();
   return useMutation({
@@ -365,6 +382,33 @@ export function useBackfillIndices() {
  *  mutation rather than a query because it must only run when clicked. */
 export function useSimplefinDiagnose() {
   return useMutation({ mutationFn: () => api.simplefin.diagnose() });
+}
+
+/** The board alone, polled on the price cadence while Markets is open. */
+export function useMarketBoardRefresh() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.market.boardRefresh(),
+    onSettled: () => qc.invalidateQueries({ queryKey: keys.marketIndices }),
+  });
+}
+
+/**
+ * Live price lines for the given symbols. Intraday lines go stale within the
+ * minute while the market is open; a daily or weekly line does not change
+ * until tomorrow, so it is kept for half an hour.
+ */
+export function useMarketChart(symbols: string[], timeframe: Timeframe, enabled = true) {
+  const intraday = isIntraday(timeframe);
+  const open = isUsMarketOpen();
+  return useQuery({
+    queryKey: ["market", "chart", timeframe, [...symbols].sort().join(",")],
+    queryFn: () => api.market.chart(symbols, timeframe),
+    enabled: enabled && symbols.length > 0,
+    staleTime: intraday && open ? 60_000 : 30 * 60_000,
+    refetchInterval: intraday && open ? 60_000 : false,
+    placeholderData: (prev) => prev,
+  });
 }
 
 /** A market refresh can change all four, so they are invalidated together. */

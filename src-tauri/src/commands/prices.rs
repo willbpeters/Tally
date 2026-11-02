@@ -12,24 +12,35 @@ pub fn upsert(conn: &Connection, security_id: i64, date: &str, close: f64, sourc
     Ok(())
 }
 
+/// The `prices` rows worth reading, as a subquery.
+///
+/// A SimpleFIN row is the brokerage's market value divided by shares, written
+/// under the sync date — weekends included. For a security Yahoo prices it only
+/// repeats the last close under a later date, so Saturday's and Sunday's rows
+/// became "latest" and "previous", and every holding showed 0.0% for the day.
+/// It stands in only for a security Yahoo has never priced.
+const QUOTED: &str =
+    "(SELECT * FROM prices p WHERE p.source <> 'simplefin'
+        OR NOT EXISTS (SELECT 1 FROM prices q WHERE q.security_id = p.security_id AND q.source <> 'simplefin'))";
+
 /// Latest close per security (most recent date), returned as (security_id, close).
 pub fn latest_all(conn: &Connection) -> rusqlite::Result<Vec<(i64, f64)>> {
-    let mut stmt = conn.prepare(
-        "SELECT p.security_id, p.close FROM prices p
-         JOIN (SELECT security_id, MAX(date) d FROM prices GROUP BY security_id) m
-           ON p.security_id=m.security_id AND p.date=m.d")?;
+    let mut stmt = conn.prepare(&format!(
+        "SELECT p.security_id, p.close FROM {QUOTED} p
+         JOIN (SELECT security_id, MAX(date) d FROM {QUOTED} GROUP BY security_id) m
+           ON p.security_id=m.security_id AND p.date=m.d"))?;
     let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?;
     rows.collect()
 }
 
 /// Previous close per security (second most recent date), for day-change math.
 pub fn previous_all(conn: &Connection) -> rusqlite::Result<Vec<(i64, f64)>> {
-    let mut stmt = conn.prepare(
+    let mut stmt = conn.prepare(&format!(
         "SELECT security_id, close FROM (
             SELECT security_id, date, close,
                    ROW_NUMBER() OVER (PARTITION BY security_id ORDER BY date DESC) rn
-            FROM prices)
-         WHERE rn = 2")?;
+            FROM {QUOTED})
+         WHERE rn = 2"))?;
     let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?;
     rows.collect()
 }
@@ -37,8 +48,8 @@ pub fn previous_all(conn: &Connection) -> rusqlite::Result<Vec<(i64, f64)>> {
 /// Every stored close from `from` onward, oldest first, as
 /// (security_id, date, close). The chart rebuilds its history from these.
 pub fn history_since(conn: &Connection, from: &str) -> rusqlite::Result<Vec<(i64, String, f64)>> {
-    let mut stmt = conn.prepare(
-        "SELECT security_id, date, close FROM prices WHERE date >= ?1 ORDER BY date, security_id")?;
+    let mut stmt = conn.prepare(&format!(
+        "SELECT security_id, date, close FROM {QUOTED} WHERE date >= ?1 ORDER BY date, security_id"))?;
     let rows = stmt.query_map([from], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?;
     rows.collect()
 }
@@ -212,5 +223,31 @@ mod tests {
         upsert(&conn, sid, "2026-01-02", 110.0, "stooq").unwrap();
         assert_eq!(latest_all(&conn).unwrap(), vec![(sid, 110.0)]);
         assert_eq!(previous_all(&conn).unwrap(), vec![(sid, 100.0)]);
+    }
+
+    #[test]
+    fn weekend_simplefin_copies_do_not_flatten_the_day_change() {
+        // What a weekend left behind: Yahoo's Thursday and Friday closes, then
+        // a SimpleFIN sync on Saturday and Sunday repeating Friday's.
+        let conn = db::open_in_memory().unwrap();
+        conn.execute("INSERT INTO securities (ticker,type) VALUES ('GOOG','stock')", []).unwrap();
+        let sid = conn.last_insert_rowid();
+        upsert(&conn, sid, "2026-10-29", 282.32, "yahoo").unwrap();
+        upsert(&conn, sid, "2026-10-30", 278.22, "yahoo").unwrap();
+        upsert(&conn, sid, "2026-10-31", 278.22, "simplefin").unwrap();
+        upsert(&conn, sid, "2026-11-01", 278.22, "simplefin").unwrap();
+
+        assert_eq!(latest_all(&conn).unwrap(), vec![(sid, 278.22)]);
+        assert_eq!(previous_all(&conn).unwrap(), vec![(sid, 282.32)]);
+        assert_eq!(history_since(&conn, "2026-10-01").unwrap().len(), 2);
+    }
+
+    #[test]
+    fn simplefin_prices_still_stand_in_for_a_security_yahoo_cannot_price() {
+        let conn = db::open_in_memory().unwrap();
+        conn.execute("INSERT INTO securities (ticker,type) VALUES ('SWVXX','etf')", []).unwrap();
+        let sid = conn.last_insert_rowid();
+        upsert(&conn, sid, "2026-10-31", 1.0, "simplefin").unwrap();
+        assert_eq!(latest_all(&conn).unwrap(), vec![(sid, 1.0)]);
     }
 }
