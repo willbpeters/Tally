@@ -146,3 +146,24 @@ describe("derivePortfolio with hidden accounts", () => {
     expect(p.accounts).toHaveLength(2);
   });
 });
+
+describe("derivePortfolio with transactions added by hand", () => {
+  const wallet: Account = { ...accounts[0], id: 3, name: "Cash", type: "cash" };
+
+  it("moves a manual account's balance by what was added to it", () => {
+    const p = derivePortfolio({
+      txns: [], securities, accounts: [wallet], latest: [], previous: [], synced: [],
+      handAdded: [[3, -27.5]],
+    });
+    expect(p.accountValues.get(3)).toBe(-27.5);
+    expect(p.cash).toBe(-27.5);
+  });
+
+  it("leaves a synced account at its bank's balance", () => {
+    const p = derivePortfolio({
+      txns: [], securities, accounts: [accounts[1]], latest: [], previous: [], synced: [],
+      handAdded: [[2, -40]],
+    });
+    expect(p.accountValues.get(2)).toBe(850);
+  });
+});

@@ -90,7 +90,13 @@ budgeting and spending module.
   deletion (`bank_transactions_sync_delete`). With a category it is manual
   and reviewed; without, rules sort it and it waits in To review. In the list
   it says "Added by you", and its × deletes it after asking
-  (`bank_transaction_delete`, refused for any other row). **Dates:** clicking
+  (`bank_transaction_delete`, refused for any other row). In a manual
+  account they move its balance: `bank_transactions_hand_added_totals` sums
+  them per account (removed ones too; removing is only a Spending matter),
+  `derivePortfolio` adds that to the account's cash, and the value chart
+  walks it back by what was added since each day. A synced account's
+  balance stays the bank's, and its chart no longer walks back through
+  rows added by hand, which the bank's balance never had. **Dates:** clicking
   a row's date moves it to another day (`bank_transaction_set_date`). That sets
   `posted_by_owner` (v14), and a bank sync then keeps the owner's date; device
   sync carries it as the `posted` field (only for owner-set dates).

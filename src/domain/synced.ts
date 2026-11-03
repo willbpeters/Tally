@@ -1,5 +1,5 @@
 import type { Position } from "./positions";
-import type { Account, SyncedHolding, Transaction } from "./types";
+import type { Account, BankTransaction, SyncedHolding, Transaction } from "./types";
 
 /** Turn SimpleFIN holdings into Positions. Uses our latest price when we have
  *  one, otherwise the price implied by SimpleFIN's market value. */
@@ -37,6 +37,27 @@ export function mergeCash(
   const out = new Map(txnCash);
   for (const a of accounts) {
     if (a.source === "simplefin") out.set(a.id, (a.synced_balance ?? 0) - (invested.get(a.id) ?? 0));
+  }
+  return out;
+}
+
+/** A transaction the owner added by hand rather than one a bank or Copilot reported. */
+export function addedByHand(t: BankTransaction): boolean {
+  return t.external_id.startsWith("manual:");
+}
+
+/** A manual account's balance also moves with what was added to it by hand
+ *  (`handAdded`: each account's all-time total). A synced account's never
+ *  does: its bank's balance is the whole story. */
+export function addHandAdded(
+  cash: Map<number, number>,
+  accounts: Account[],
+  handAdded: [number, number][],
+): Map<number, number> {
+  const manual = new Set(accounts.filter((a) => a.source !== "simplefin").map((a) => a.id));
+  const out = new Map(cash);
+  for (const [id, total] of handAdded) {
+    if (manual.has(id)) out.set(id, (out.get(id) ?? 0) + total);
   }
   return out;
 }

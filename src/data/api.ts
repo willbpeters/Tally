@@ -118,6 +118,8 @@ export const api = {
     list: (from: string, to: string) =>
       invoke<BankTransaction[]>("bank_transactions_list", { from, to }),
     range: () => invoke<[string | null, string | null]>("bank_transactions_range"),
+    /** [account id, total] of what was added by hand to each manual account. */
+    handAddedTotals: () => invoke<[number, number][]>("bank_transactions_hand_added_totals"),
     setCategory: (id: number, categoryId: number | null, applyToPayee: boolean) =>
       invoke<number>("bank_transaction_set_category", { id, categoryId, applyToPayee }),
     /** One category for many rows; split rows are left as they are. Returns rows changed. */

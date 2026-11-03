@@ -169,9 +169,13 @@ export const budgetKeys = {
   budgets: ["budgets"] as const,
   txns: (from: string, to: string) => ["bankTxns", from, to] as const,
   range: ["bankTxns", "range"] as const,
+  handAdded: ["bankTxns", "handAdded"] as const,
   toReview: ["bankTxns", "toReview"] as const,
 };
 
+/** Under "bankTxns", so adding, deleting or syncing a transaction refreshes balances too. */
+export const useHandAddedTotals = () =>
+  useQuery({ queryKey: budgetKeys.handAdded, queryFn: api.bankTransactions.handAddedTotals });
 export const useCategories = () => useQuery({ queryKey: budgetKeys.categories, queryFn: api.categories.list });
 export const useRules = () => useQuery({ queryKey: budgetKeys.rules, queryFn: api.rules.list });
 export const useBudgets = () => useQuery({ queryKey: budgetKeys.budgets, queryFn: api.budgets.list });

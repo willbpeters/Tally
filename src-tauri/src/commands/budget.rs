@@ -361,6 +361,27 @@ pub fn add_own_transaction(conn: &Connection, t: &NewBankTxn) -> Result<i64, Str
 }
 
 #[tauri::command]
+pub fn bank_transactions_hand_added_totals(db: tauri::State<Db>) -> Result<Vec<(i64, f64)>, String> {
+    let conn = db.0.lock().unwrap_or_else(|e| e.into_inner());
+    hand_added_totals(&conn).map_err(|e| e.to_string())
+}
+
+/// What the transactions added by hand to each manual account come to, all
+/// time: money in or out of that account, so its balance moves with them. A
+/// synced account's are left out, its bank's balance being the whole story.
+/// Removed rows count: removing only takes a row out of Spending.
+pub fn hand_added_totals(conn: &Connection) -> rusqlite::Result<Vec<(i64, f64)>> {
+    let mut stmt = conn.prepare(
+        "SELECT b.account_id, ROUND(SUM(b.amount), 2) FROM bank_transactions b
+           JOIN accounts a ON a.id = b.account_id
+         WHERE b.external_id LIKE 'manual:%' AND a.source <> 'simplefin' AND b.pending = 0
+         GROUP BY b.account_id ORDER BY b.account_id",
+    )?;
+    let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?;
+    rows.collect()
+}
+
+#[tauri::command]
 pub fn bank_transaction_delete(db: tauri::State<Db>, id: i64) -> Result<(), String> {
     let conn = db.0.lock().unwrap_or_else(|e| e.into_inner());
     delete_own_transaction(&conn, id)
@@ -593,6 +614,21 @@ mod tests {
         let other = cash(&conn, |_| {}).unwrap();
         let ext2: String = conn.query_row("SELECT external_id FROM bank_transactions WHERE id=?1", [other], |r| r.get(0)).unwrap();
         assert_ne!(ext, ext2, "the same cash purchase twice is two rows");
+    }
+
+    #[test]
+    fn a_manual_accounts_hand_added_transactions_are_totalled_for_its_balance() {
+        let conn = with_target_paycheck();
+        cash(&conn, |_| {}).unwrap();
+        let removed = cash(&conn, |t| t.amount = 40.0).unwrap();
+        // Removed is a Spending matter: the money still moved.
+        conn.execute("UPDATE bank_transactions SET removed=1 WHERE id=?1", [removed]).unwrap();
+        // A bank's rows are in the bank's own balance, so they never count.
+        conn.execute_batch(
+            "INSERT INTO accounts (name,type,currency,created_at,source,external_id) VALUES ('Card','credit','USD','2026-01-01','simplefin','ACT-1');",
+        ).unwrap();
+        cash(&conn, |t| t.account_id = 2).unwrap();
+        assert_eq!(hand_added_totals(&conn).unwrap(), vec![(1, 27.5)]);
     }
 
     #[test]

@@ -2,12 +2,14 @@ import { buildPositions, aggregateHoldings, clampOversells } from "./positions";
 import { buildSummary } from "./summary";
 import { allocationByType, allocationByAccount } from "./allocation";
 import { cashByAccount } from "./cash";
-import { syncedPositions, mergeCash, manualOnly } from "./synced";
+import { syncedPositions, mergeCash, manualOnly, addHandAdded } from "./synced";
 import type { Account, Holding, Security, SyncedHolding, Transaction, PortfolioSummary, AllocationSlice } from "./types";
 
 export interface PortfolioInputs {
   txns: Transaction[]; securities: Security[]; accounts: Account[];
   latest: [number, number][]; previous: [number, number][]; synced: SyncedHolding[];
+  /** What the transactions added by hand to each account come to, all time. */
+  handAdded?: [number, number][];
 }
 
 export interface AccountBreakdown {
@@ -42,7 +44,9 @@ export function derivePortfolio(i: PortfolioInputs): Portfolio {
   ];
   const holdings = aggregateHoldings(positions, i.securities);
 
-  const cashMap = mergeCash(cashByAccount(manualTxns), accounts, syncedHoldings);
+  const cashMap = addHandAdded(
+    mergeCash(cashByAccount(manualTxns), accounts, syncedHoldings), accounts, i.handAdded ?? [],
+  );
   // A credit card's balance is money owed, not cash you could spend, so the two
   // are totalled separately even though both land in the net-worth figure.
   const isCredit = new Set(accounts.filter((a) => a.type === "credit").map((a) => a.id));

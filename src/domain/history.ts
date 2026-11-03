@@ -1,5 +1,6 @@
 import { cashEffect } from "./cash";
 import { clampOversells } from "./positions";
+import { addedByHand } from "./synced";
 import type { Account, BankTransaction, SyncedHolding, Transaction, ValuePoint } from "./types";
 
 /** One stored daily close. */
@@ -14,6 +15,8 @@ export interface HistoryInputs {
   txns: Transaction[];
   synced: SyncedHolding[];
   bankTxns: BankTransaction[];
+  /** What the transactions added by hand to each account come to, all time. */
+  handAdded?: [number, number][];
   prices: PriceRow[];
   /** YYYY-MM-DD. */
   today: string;
@@ -156,6 +159,19 @@ export function reconstructSeries(i: HistoryInputs): ValuePoint[] {
       else cash += effect;
     }
 
+    // Added by hand to a manual account: today's total, less what was added
+    // since, as for a bank's balance below.
+    for (const [accountId, total] of i.handAdded ?? []) {
+      if (!visible.has(accountId) || isSynced.has(accountId)) continue;
+      const since = bankTxns
+        .filter((t) => t.account_id === accountId && addedByHand(t) && t.posted > date)
+        .reduce((sum, t) => sum + t.amount, 0);
+      const balance = total - since;
+      value += balance;
+      if (isCredit.has(accountId)) liabilities -= balance;
+      else cash += balance;
+    }
+
     // Synced cash and cards: today's balance, less everything posted since.
     // A credit balance is negative, so this nets debt out of the total.
     // The balance covers the whole account, holdings included, so what the
@@ -167,7 +183,7 @@ export function reconstructSeries(i: HistoryInputs): ValuePoint[] {
         .filter((h) => h.account_id === a.id)
         .reduce((sum, h) => sum + h.market_value, 0);
       const posted = bankTxns
-        .filter((t) => t.account_id === a.id && t.posted > date)
+        .filter((t) => t.account_id === a.id && !addedByHand(t) && t.posted > date)
         .reduce((sum, t) => sum + t.amount, 0);
       const balance = a.synced_balance - accountHoldings - posted;
       value += balance;

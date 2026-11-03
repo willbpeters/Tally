@@ -131,6 +131,32 @@ describe("reconstructSeries — reconstructed cash", () => {
   });
 });
 
+describe("reconstructSeries — transactions added by hand", () => {
+  const wallet = acct(4, "Cash", "cash", "manual", null);
+  const current = acct(2, "Everyday", "cash", "simplefin", 500);
+  const prices = [price(10, "2026-09-04", 100), price(10, TODAY, 100)];
+  const own = (id: number, account_id: number, posted: string, amount: number) =>
+    ({ ...bank(id, account_id, posted, amount), external_id: `manual:${id}` });
+
+  it("walks a manual account back from what its added transactions come to", () => {
+    // 60 added in all; 20 of it on the 5th, so the 4th closed at 40.
+    const s = reconstructSeries({
+      ...base, accounts: [wallet], txns: [], synced: [], prices,
+      bankTxns: [own(1, 4, TODAY, 20)], handAdded: [[4, 60]],
+    });
+    expect(s.find((p) => p.date === "2026-09-04")?.value).toBe(40);
+    expect(s.find((p) => p.date === TODAY)?.value).toBe(60);
+  });
+
+  it("does not walk a synced balance back through a row the bank never had", () => {
+    const s = reconstructSeries({
+      ...base, accounts: [current], txns: [], synced: [], prices,
+      bankTxns: [own(1, 2, TODAY, -80)],
+    });
+    expect(s.find((p) => p.date === "2026-09-04")?.value).toBe(500);
+  });
+});
+
 describe("reconstructSeries — what it refuses to guess", () => {
   const broker = acct(1, "Fidelity", "brokerage", "simplefin", 600);
   const held: SyncedHolding[] = [

@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { localIsoDate } from "../domain/dates";
 import {
-  useAccounts, useTransactions, useSyncedHoldings, useBankTransactions, usePriceHistoryRows,
+  useAccounts, useTransactions, useSyncedHoldings, useBankTransactions, usePriceHistoryRows, useHandAddedTotals,
   useSecurities, useMarketChart,
 } from "./queries";
 import { reconstructSeries, type PriceRow } from "../domain/history";
@@ -57,6 +57,7 @@ export function useValueSeries(tf: DashboardTimeframe = "3m"): { series: ValuePo
   const { data: bankTxns = [], isLoading: l4 } = useBankTransactions(from, today);
   const { data: rows = [], isLoading: l5 } = usePriceHistoryRows(from);
   const { data: securities = [] } = useSecurities();
+  const { data: handAdded = [], isLoading: l6 } = useHandAddedTotals();
 
   const held = useMemo(() => {
     const ids = new Set<number>([
@@ -71,7 +72,7 @@ export function useValueSeries(tf: DashboardTimeframe = "3m"): { series: ValuePo
 
   const result = useMemo(() => {
     const daily: PriceRow[] = rows.map(([security_id, date, close]) => ({ security_id, date, close }));
-    const inputs = { accounts, txns, synced, bankTxns, today, days: HISTORY_DAYS };
+    const inputs = { accounts, txns, synced, bankTxns, handAdded, today, days: HISTORY_DAYS };
     if (bars && bars.length > 0) {
       const idFor = new Map(held.map((s) => [s.ticker.toUpperCase(), s.id]));
       const keys = timeline(bars).map(localKey);
@@ -79,7 +80,7 @@ export function useValueSeries(tf: DashboardTimeframe = "3m"): { series: ValuePo
       if (series.length >= 2) return { series, live: true };
     }
     return { series: clip(reconstructSeries({ ...inputs, prices: daily }), WINDOW_DAYS[tf]), live: false };
-  }, [accounts, txns, synced, bankTxns, rows, today, bars, held, tf]);
+  }, [accounts, txns, synced, bankTxns, handAdded, rows, today, bars, held, tf]);
 
-  return { ...result, isLoading: l1 || l2 || l3 || l4 || l5 };
+  return { ...result, isLoading: l1 || l2 || l3 || l4 || l5 || l6 };
 }

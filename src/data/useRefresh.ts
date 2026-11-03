@@ -16,11 +16,12 @@ export function useRefreshPrices() {
 
       // Recompute total value with the same derivation the screens use, then
       // record today's snapshot for the chart.
-      const [txns, securities, accounts, latest, previous, synced] = await Promise.all([
+      const [txns, securities, accounts, latest, previous, synced, handAdded] = await Promise.all([
         api.transactions.list(), api.securities.list(), api.accounts.list(),
         api.prices.latest(), api.prices.previous(), api.syncedHoldings.list(),
+        api.bankTransactions.handAddedTotals(),
       ]);
-      const { summary } = derivePortfolio({ txns, securities, accounts, latest, previous, synced });
+      const { summary } = derivePortfolio({ txns, securities, accounts, latest, previous, synced, handAdded });
       await api.snapshots.record(localIsoDate(), summary.totalValue);
       await qc.invalidateQueries({ queryKey: keys.snapshots });
       return updated;
