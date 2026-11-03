@@ -1,6 +1,6 @@
 [package]
 name = "ledgerly"
-version = "0.1.4"
+version = "0.2.0"
 description = "Local-first personal finance desktop app"
 authors = ["Will Peters"]
 edition = "2021"
