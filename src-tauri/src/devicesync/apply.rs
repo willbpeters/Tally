@@ -282,6 +282,8 @@ fn insert_bank_row(conn: &Connection, device: &str, c: &Change) -> rusqlite::Res
                  WHERE account_id=?1 AND external_id NOT LIKE 'copilot:%'
                    AND sync_key NOT LIKE '%|copilot:%'
                    AND pending = 0
+                   -- removed: not matched, as in the import, so Copilot's copy shows
+                   AND removed = 0
                    -- the other computer already shows it holds this row apart
                    AND NOT EXISTS (SELECT 1 FROM sync_clock k
                                    WHERE k.tbl='bank_transactions' AND k.key=bank_transactions.sync_key AND k.device=?4)
@@ -716,6 +718,18 @@ mod tests {
             )
             .unwrap();
         assert_eq!((cat.as_str(), note.as_str(), key.as_str()), ("Groceries", "mine", COPILOT_KEY));
+    }
+
+    #[test]
+    fn a_removed_bank_row_is_not_taken_over_so_copilots_copy_shows() {
+        // As in the import: a removed bank row is never matched, and Copilot's
+        // copy shows instead. Taking it over would hide both.
+        let conn = applying();
+        conn.execute("UPDATE bank_transactions SET removed=1", []).unwrap();
+        let c = change("bank_transactions", COPILOT_KEY, "_row", copilot_row("2026-10-02", "cat:Dining", "x"), 10);
+        assert_eq!(apply(&conn, "pc", &c).unwrap(), Outcome::Applied);
+        assert_eq!(one::<i64>(&conn, "SELECT count(*) FROM bank_transactions"), 2);
+        assert_eq!(one::<i64>(&conn, "SELECT removed FROM bank_transactions WHERE sync_key='sf:ACT-1|copilot:00ff'"), 0);
     }
 
     #[test]
