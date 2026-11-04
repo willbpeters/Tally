@@ -347,6 +347,8 @@ th.select-cell, td.select-cell { width: 18px; padding-right: 0; text-align: left
 .select-cell input { opacity: 0; cursor: pointer; margin: 0; }
 tr:hover .select-cell input, .select-cell input:focus-visible, .selecting .select-cell input { opacity: 1; }
 tbody tr.picked td { background: var(--surface-2); }
+/* One part of a split transaction: a thin rule ties it to its siblings. */
+tbody tr.split-part td:first-child { box-shadow: inset 2px 0 0 var(--line-2); }
 /* A month's heading inside a transaction list. Not sticky like the column heads. */
 .month-row th {
   position: static; font-family: var(--font-display); font-size: 17px; font-weight: 400; text-transform: none;

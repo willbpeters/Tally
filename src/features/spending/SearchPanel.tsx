@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { searchTransactions, type TxnSearch } from "../../domain/search";
-import { amountInCategory } from "../../domain/splits";
+import { expandSplits } from "../../domain/splits";
 import { money } from "../../ui/format";
 import { Card, EmptyState } from "../../ui/components";
 import { TransactionList } from "./TransactionList";
@@ -12,7 +12,9 @@ const SHOW_AT_MOST = 200;
 /**
  * Search every month at once: words find payees, descriptions, notes,
  * categories and accounts; a number finds that amount; >100 or <20 compare
- * sizes. `transactions` is everything that counts toward spending.
+ * sizes. `transactions` is everything that counts toward spending. A split
+ * transaction is searched, listed and totalled part by part, so a category
+ * filter finds and counts only the parts in that category.
  */
 export function SearchPanel({ initialText = "", transactions, loading, categories, accounts, onRemove }: {
   /** What was typed in the command bar's search box, if that is how we got here. */
@@ -26,16 +28,13 @@ export function SearchPanel({ initialText = "", transactions, loading, categorie
   const [search, setSearch] = useState<TxnSearch>({ text: initialText, categoryId: null, accountId: null });
   const searching = search.text.trim() !== "" || search.categoryId != null || search.accountId != null;
 
+  const rows = useMemo(() => expandSplits(transactions), [transactions]);
   const matches = useMemo(
-    () => (searching ? searchTransactions(transactions, search, { categories, accounts }) : []),
-    [searching, transactions, search, categories, accounts],
+    () => (searching ? searchTransactions(rows, search, { categories, accounts }) : []),
+    [searching, rows, search, categories, accounts],
   );
-  // With a category filter, a split purchase counts only the pieces in that
-  // category; otherwise the whole amount, as the bank has it.
-  const counted = (t: BankTransaction) =>
-    search.categoryId == null ? t.amount : amountInCategory(t, search.categoryId);
-  const out = matches.reduce((s, t) => s + Math.min(counted(t), 0), 0);
-  const into = matches.reduce((s, t) => s + Math.max(counted(t), 0), 0);
+  const out = matches.reduce((s, t) => s + Math.min(t.amount, 0), 0);
+  const into = matches.reduce((s, t) => s + Math.max(t.amount, 0), 0);
 
   return (
     <Card

@@ -1,5 +1,5 @@
 import type { Account, BankTransaction, Budget, Category } from "./types";
-import { piecesOf } from "./splits";
+import { piecesOf, wholeOf } from "./splits";
 
 /**
  * Transactions that count toward spending: not removed, not in a hidden account, and not in
@@ -109,7 +109,8 @@ export interface MonthSummary {
  * better than "-157". A refund reduces its category rather than counting as
  * income, and transfers between your own accounts are left out of both sides
  * so moving money never looks like earning or spending it. A split transaction
- * counts piece by piece, each in its own category.
+ * counts piece by piece, each in its own category. `txns` may be whole
+ * transactions or the rows of `expandSplits`; the totals are the same.
  */
 export function summariseMonth(
   txns: BankTransaction[],
@@ -129,7 +130,8 @@ export function summariseMonth(
   let uncategorisedTotal = 0;
 
   for (const t of inMonth) {
-    let needsCategory = false; // a transaction counts once, however many of its pieces do
+    const whole = wholeOf(t);
+    let needsCategory = false; // a row counts once, however many of its pieces do
     for (const piece of piecesOf(t)) {
       const category = piece.category_id == null ? null : byId.get(piece.category_id) ?? null;
       if (category?.kind === "transfer") {
@@ -146,7 +148,7 @@ export function summariseMonth(
         // So does a real uncategorised piece of the opposite sign to the
         // transaction: undoing an Unsplit after the bank's amount went down stores
         // the gap that way, and it is not income.
-        const oppositeInASplit = t.splits.length > 0 && Math.sign(piece.amount) !== Math.sign(t.amount);
+        const oppositeInASplit = whole.splits.length > 0 && Math.sign(piece.amount) !== Math.sign(whole.amount);
         if (piece.remainder || piece.amount < 0 || oppositeInASplit) {
           needsCategory = true;
           uncategorisedTotal += -piece.amount;

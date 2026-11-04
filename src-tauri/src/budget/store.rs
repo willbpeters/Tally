@@ -1387,6 +1387,48 @@ mod tests {
     }
 
     #[test]
+    fn re_syncing_a_split_transaction_never_duplicates_or_rewrites_its_parts() {
+        // The parts show as separate transactions in Spending, but they are
+        // stored as pieces of the bank's one row: a sync finds that row by its
+        // external id and updates it, so the parts are neither copied nor lost.
+        let conn = seeded();
+        let (card, id) = costco(&conn);
+        set_splits(&conn, id, &[piece(&conn, Some("Groceries"), -60.0), piece(&conn, Some("Shopping"), -25.5)]).unwrap();
+
+        for _ in 0..3 {
+            upsert_transactions(&conn, card, &[payee_txn("c1", "2026-10-03", -85.5, "Costco")], &[]).unwrap();
+        }
+        // The bank settles it at a different amount: the pieces stay as the owner set them.
+        upsert_transactions(&conn, card, &[payee_txn("c1", "2026-10-03", -90.0, "Costco")], &[]).unwrap();
+
+        let rows: i64 = conn.query_row("SELECT count(*) FROM bank_transactions", [], |r| r.get(0)).unwrap();
+        assert_eq!(rows, 1);
+        assert_eq!(splits_of(&conn, "c1"), vec![(Some("Groceries".into()), -60.0), (Some("Shopping".into()), -25.5)]);
+        let pieces: i64 = conn.query_row("SELECT count(*) FROM bank_transaction_splits", [], |r| r.get(0)).unwrap();
+        assert_eq!(pieces, 2);
+    }
+
+    #[test]
+    fn a_sync_taking_over_a_split_copilot_row_keeps_its_parts() {
+        let conn = seeded();
+        let card = account(&conn, "Card (9849)", "credit");
+        upsert_transactions(&conn, card, &[payee_txn("sf-new", "2026-07-02", -1.0, "Zqx")], &[]).unwrap();
+        let csv = format!("{COPILOT_HEADER}\n\"2026-01-05\",\"Old Diner\",\"8\",\"posted\",\"Eating Out\",\"\",\"false\",\"\",\"regular\",\"Adv\",\"9849\",\"\",\"\"\n");
+        apply_copilot_plan(&conn, &copilot_plan(&conn, &csv)).unwrap();
+        let imported: i64 = conn.query_row("SELECT id FROM bank_transactions WHERE amount=-8", [], |r| r.get(0)).unwrap();
+        set_splits(&conn, imported, &[piece(&conn, Some("Eating Out"), -5.0), piece(&conn, None, -3.0)]).unwrap();
+
+        // The bank's own copy of that purchase arrives later, twice.
+        for _ in 0..2 {
+            upsert_transactions(&conn, card, &[payee_txn("sf-old", "2026-01-06", -8.0, "Old Diner Inc")], &[]).unwrap();
+        }
+
+        let rows: i64 = conn.query_row("SELECT count(*) FROM bank_transactions WHERE amount=-8", [], |r| r.get(0)).unwrap();
+        assert_eq!(rows, 1, "the bank's copy took over the imported row rather than adding another");
+        assert_eq!(splits_of(&conn, "sf-old"), vec![(Some("Eating Out".into()), -5.0), (None, -3.0)]);
+    }
+
+    #[test]
     fn deleting_the_account_deletes_the_pieces() {
         let conn = seeded();
         let (card, id) = costco(&conn);

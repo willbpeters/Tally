@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { monthWindow, monthLabel, shiftMonth, stepMonth, summariseMonth, limitFor, fromVisibleAccounts, inVisibleAccounts } from "./spending";
+import { expandSplits, inCategory } from "./splits";
 import type { Account, BankTransaction, Budget, Category } from "./types";
 
 const cats: Category[] = [
@@ -250,5 +251,42 @@ describe("inVisibleAccounts", () => {
     const rows = [row(1, 1), row(2, 1, true), row(3, 2), row(4, 3), row(5, 9)];
     expect(inVisibleAccounts(rows, accounts).map((t) => t.id)).toEqual([1, 2, 5]);
     expect(fromVisibleAccounts(rows, accounts).map((t) => t.id)).toEqual([1, 5]);
+  });
+});
+
+describe("summariseMonth over split parts as separate rows", () => {
+  const strip = (s: ReturnType<typeof summariseMonth>) => ({ ...s, uncategorisedCount: 0 });
+  const month = [
+    split(-85.5, [[1, -60], [2, -25.5]]),
+    split(29, [[3, 19], [1, 10]]), // money in, part income and part a refund
+    split(-90, [[1, -60], [2, -25.5]]), // the bank's amount went up since
+    split(-80, [[1, -60], [2, -25.5]]), // ...or down
+    txn(-12, 2),
+  ];
+
+  it("totals exactly what the whole transactions total: nothing twice, nothing lost", () => {
+    const whole = summariseMonth(month, cats, [], "2026-09");
+    const parts = summariseMonth(expandSplits(month), cats, [], "2026-09");
+    expect(strip(parts)).toEqual(strip(whole));
+  });
+
+  it("counts each part in its own category, and against that category's limit", () => {
+    const budgets: Budget[] = [{ id: 1, category_id: 2, month: "2026-09", limit_amount: 30 }];
+    const s = summariseMonth(expandSplits([split(-85.5, [[1, -60], [2, -25.5]]), txn(-12, 2)]), cats, budgets, "2026-09");
+    const dining = s.categories.find((c) => c.category.id === 2)!;
+    expect([dining.spent, dining.count]).toEqual([37.5, 2]);
+    expect(s.spent).toBe(97.5);
+    expect([dining.limit, dining.over]).toEqual([30, true]);
+  });
+
+  it("filtering by a category finds only the part in it, at its own amount", () => {
+    const rows = expandSplits(month).filter((t) => inCategory(t, 2));
+    expect(rows.map((t) => t.amount)).toEqual([-25.5, -25.5, -25.5, -12]);
+  });
+
+  it("counts each part that needs a category once, like any other row", () => {
+    const s = summariseMonth(expandSplits([split(-90, [[null, -60], [null, -30]])]), cats, [], "2026-09");
+    expect(s.uncategorisedCount).toBe(2);
+    expect(s.uncategorisedTotal).toBe(90);
   });
 });

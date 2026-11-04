@@ -6,7 +6,7 @@ import {
   useRecurringDismissed, useSetRecurringDismissed,
 } from "../../data/queries";
 import { monthWindow, monthLabel, stepMonth, thisMonth, summariseMonth, fromVisibleAccounts, inVisibleAccounts } from "../../domain/spending";
-import { inCategory } from "../../domain/splits";
+import { expandSplits, inCategory } from "../../domain/splits";
 import { money } from "../../ui/format";
 import { Card, Button, EmptyState, Segmented } from "../../ui/components";
 import { TransactionList } from "./TransactionList";
@@ -121,13 +121,17 @@ export function Spending() {
     });
   }
 
+  // A split transaction is one row per piece from here on: each part lists,
+  // filters and counts on its own, so it is never counted twice or whole.
+  const rows = useMemo(() => expandSplits(txns), [txns]);
+  const listRows = useMemo(() => expandSplits(listTxns), [listTxns]);
   const summary = useMemo(
-    () => summariseMonth(txns, categories, budgets, month),
-    [txns, categories, budgets, month],
+    () => summariseMonth(rows, categories, budgets, month),
+    [rows, categories, budgets, month],
   );
 
-  // A split purchase shows under every category it was split into.
-  const shown = listTxns.filter((t) => focus == null || inCategory(t, focus));
+  // A category shows only the parts of a split that are in it, at their own amounts.
+  const shown = listRows.filter((t) => focus == null || inCategory(t, focus));
 
   const nothingImported = range !== undefined && range[0] == null;
 

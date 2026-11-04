@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { parseSearch, searchTransactions } from "./search";
+import { expandSplits } from "./splits";
 import type { Account, BankTransaction, Category } from "./types";
 
 const cats: Category[] = [
@@ -105,5 +106,18 @@ describe("searchTransactions", () => {
     const recent = txn({ posted: "2026-10-01" });
     const mid = txn({ posted: "2026-03-15" });
     expect(searchTransactions([old, recent, mid], all, ctx)).toEqual([recent, mid, old]);
+  });
+
+  it("searches a split part by part: only the matching part, at its own amount", () => {
+    const costco = txn({ amount: -85.5, splits: [
+      { id: 1, category_id: 1, amount: -60, note: null },
+      { id: 2, category_id: 2, amount: -25.5, note: "pizza" },
+    ] });
+    const rows = expandSplits([costco]);
+    expect(searchTransactions(rows, { ...all, categoryId: 2 }, ctx).map((t) => t.amount)).toEqual([-25.5]);
+    expect(searchTransactions(rows, { ...all, text: "pizza" }, ctx).map((t) => t.amount)).toEqual([-25.5]);
+    expect(searchTransactions(rows, { ...all, text: ">50" }, ctx).map((t) => t.amount)).toEqual([-60]);
+    // A bare amount still finds the parts by the bank's whole amount.
+    expect(searchTransactions(rows, { ...all, text: "85.50" }, ctx)).toHaveLength(2);
   });
 });

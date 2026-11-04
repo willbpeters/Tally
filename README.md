@@ -52,7 +52,8 @@ it on your own computer. There are no accounts, no cloud and no subscription.
 - A "To review" list for anything new, and rules that learn from your choices
 - Recurring bills and subscriptions spotted automatically, with the next
   expected date and what is still due this month
-- Split one purchase across several categories
+- Split one purchase into separate transactions, each in its own category: every
+  part lists, filters and counts on its own, and the editor fills in what is left
 - Undo after every change
 - Categories show as coloured pills, so they stand out in the list
 - Starts with no preset categories: you make your own, or bring Copilot's

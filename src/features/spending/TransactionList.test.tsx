@@ -11,6 +11,7 @@ const setDate = vi.hoisted(() => vi.fn());
 const approve = vi.hoisted(() => vi.fn());
 const setMany = vi.hoisted(() => vi.fn());
 const deleteTxn = vi.hoisted(() => vi.fn());
+const setSplits = vi.hoisted(() => vi.fn());
 const confirmed = vi.hoisted(() => ({ ok: true, asked: [] as string[] }));
 vi.mock("../../ui/confirm", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../ui/confirm")>()),
@@ -25,6 +26,7 @@ vi.mock("../../data/queries", async (importOriginal) => ({
   useSetCategoryMany: () => ({ mutate: setMany, isPending: false }),
   useSetRemoved: () => ({ mutate: vi.fn(), isPending: false }),
   useDeleteBankTransaction: () => ({ mutate: deleteTxn }),
+  useSetSplits: () => ({ mutate: setSplits, isPending: false, isError: false, error: null, reset: vi.fn() }),
 }));
 const { TransactionList } = await import("./TransactionList");
 
@@ -92,9 +94,21 @@ describe("TransactionList selection", () => {
     setMany.mockClear();
     renderList({ transactions: [...rows, split({ id: 5, payee: "Echo" })], selectable: true, categories: [category, dining] });
     fireEvent.click(screen.getByLabelText("Select Bravo"));
-    fireEvent.click(screen.getByLabelText("Select Echo"));
+    fireEvent.click(screen.getByLabelText("Select Echo, part 1 of 2"));
     fireEvent.change(screen.getByLabelText("Categorize selected"), { target: { value: "2" } });
     expect(setMany).toHaveBeenCalledWith({ ids: [2], categoryId: 2 }, expect.anything());
+  });
+
+  it("ticks each part of a split on its own, but reviews its transaction once", () => {
+    approve.mockClear();
+    renderList({ transactions: [split({ id: 5, payee: "Echo", reviewed: false })], selectable: true });
+    fireEvent.click(screen.getByLabelText("Select Echo, part 1 of 2"));
+    expect(screen.getByRole("toolbar")).toHaveTextContent("1 selected");
+    expect(screen.getByRole("toolbar")).toHaveTextContent("$60.00");
+    fireEvent.click(screen.getByLabelText("Select Echo, part 2 of 2"));
+    expect(screen.getByRole("toolbar")).toHaveTextContent("$85.50");
+    fireEvent.click(screen.getByRole("button", { name: /Mark reviewed/ }));
+    expect(approve).toHaveBeenCalledWith([5], expect.anything());
   });
 });
 
@@ -209,10 +223,12 @@ describe("TransactionList categories", () => {
     expect(screen.getByTitle("You chose this category")).toBeInTheDocument();
   });
 
-  it("shows a split row's pieces as pills", () => {
+  it("shows each part of a split with its own category pill", () => {
     renderList({ transactions: [split()] });
-    expect(pillOf(screen.getByText("Shopping")).style.getPropertyValue("--pill")).toBe("var(--cat-2)");
-    expect(pillOf(screen.getByText("Uncategorised"))).toHaveClass("none");
+    const first = screen.getByRole("combobox", { name: "Category for Target, part 1 of 2" });
+    expect(first).toHaveValue("1");
+    expect(pillOf(first).style.getPropertyValue("--pill")).toBe("var(--cat-2)");
+    expect(pillOf(screen.getByRole("combobox", { name: "Category for Target, part 2 of 2" }))).toHaveClass("none");
   });
 });
 
@@ -223,37 +239,71 @@ describe("TransactionList splits", () => {
     expect(screen.getByLabelText("Amount for piece 1")).toHaveValue("9.00");
   });
 
-  it("shows a split row's pieces instead of the category picker", () => {
+  it("lists each part of a split as its own row, with its own amount", () => {
     renderList({ transactions: [split()] });
+    const rows = screen.getAllByRole("row").slice(1);
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toHaveTextContent("Split 1 of 2");
+    expect(rows[0]).toHaveTextContent("-$60.00");
+    expect(rows[1]).toHaveTextContent("Split 2 of 2");
+    expect(rows[1]).toHaveTextContent("-$25.50");
+    // Each part shows the date, description and account of the whole, and links back to it.
+    for (const row of rows) {
+      expect(row).toHaveTextContent("Target");
+      expect(row).toHaveTextContent("Card");
+      expect(row).toHaveTextContent("of -$85.50");
+    }
     expect(screen.queryByLabelText("Category for Target")).toBeNull();
     expect(screen.queryByRole("button", { name: "Split Target" })).toBeNull();
-    expect(screen.getByText("Shopping")).toBeInTheDocument();
-    expect(screen.getByText("$60.00")).toBeInTheDocument();
-    expect(screen.getByText("Uncategorised")).toBeInTheDocument();
-    expect(screen.getByText("$25.50")).toBeInTheDocument();
   });
 
-  it("puts a plus before a piece that is money back", () => {
+  it("puts a plus before a part that is money back", () => {
     renderList({ transactions: [split({
       amount: -85.5,
       splits: [{ id: 1, category_id: 1, amount: -100, note: null }, { id: 2, category_id: null, amount: 14.5, note: null }],
     })] });
     expect(screen.getByText("+$14.50")).toBeInTheDocument();
-    expect(screen.getByText("$100.00")).toBeInTheDocument();
+    expect(screen.getByText("-$100.00")).toBeInTheDocument();
   });
 
-  it("marks a split row that has not been reviewed, and not one that has", () => {
+  it("marks the parts of a split that has not been reviewed, and not one that has", () => {
     const { unmount } = renderList({ transactions: [split({ reviewed: false })] });
-    expect(screen.getByTitle("To review")).toHaveAttribute("aria-label", "To review");
+    expect(screen.getAllByTitle("To review")).toHaveLength(2);
     unmount();
     renderList({ transactions: [split({ reviewed: true })] });
     expect(screen.queryByTitle("To review")).toBeNull();
   });
 
-  it("edits a split from its Edit split button", () => {
+  it("edits the whole split from any part's Edit split button", () => {
     renderList({ transactions: [split()] });
-    fireEvent.click(screen.getByRole("button", { name: "Edit split for Target" }));
+    fireEvent.click(screen.getByRole("button", { name: "Edit split for Target, part 2 of 2" }));
+    expect(screen.getByLabelText("Amount for piece 1")).toHaveValue("60.00");
     expect(screen.getByLabelText("Amount for piece 2")).toHaveValue("25.50");
+    expect(screen.getByRole("button", { name: "Unsplit" })).toBeInTheDocument();
+  });
+
+  it("moves one part to another category by saving the split again", () => {
+    setSplits.mockClear();
+    renderList({ transactions: [split()], categories: [category, dining] });
+    fireEvent.change(screen.getByLabelText("Category for Target, part 2 of 2"), { target: { value: "2" } });
+    expect(setSplits).toHaveBeenCalledWith(
+      { id: 7, splits: [{ category_id: 1, amount: -60, note: null }, { category_id: 2, amount: -25.5, note: null }] },
+      expect.anything(),
+    );
+    expect(setCategory).not.toHaveBeenCalledWith(expect.objectContaining({ id: 7, categoryId: 2 }), expect.anything());
+  });
+
+  it("gives the part the bank's new amount left over a category as a new piece", () => {
+    setSplits.mockClear();
+    renderList({ transactions: [split({ amount: -90 })], categories: [category, dining] });
+    fireEvent.change(screen.getByLabelText("Category for Target, part 3 of 3"), { target: { value: "2" } });
+    expect(setSplits).toHaveBeenCalledWith(
+      { id: 7, splits: [
+        { category_id: 1, amount: -60, note: null }, { category_id: null, amount: -25.5, note: null },
+        { category_id: 2, amount: -4.5, note: null },
+      ] },
+      expect.anything(),
+    );
   });
 
   it("says when the bank's amount no longer matches the pieces", () => {
@@ -270,7 +320,7 @@ describe("TransactionList splits", () => {
   it("still offers Approve on a split row", () => {
     const onApprove = vi.fn();
     renderList({ transactions: [split({ reviewed: false })], onApprove });
-    fireEvent.click(screen.getByRole("button", { name: "Approve Target" }));
+    fireEvent.click(screen.getByRole("button", { name: "Approve Target, part 1 of 2" }));
     expect(onApprove).toHaveBeenCalledWith(7);
   });
 

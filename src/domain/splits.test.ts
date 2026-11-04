@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { piecesOf, splitRemainder, validateSplits, inCategory, amountInCategory } from "./splits";
+import { piecesOf, splitRemainder, validateSplits, inCategory, amountInCategory, expandSplits, piecesWithCategory, fillRemainder, wholeOf } from "./splits";
 import type { BankTransaction, TxnSplit } from "./types";
 
 const txn = (over: Partial<BankTransaction> = {}): BankTransaction => ({
@@ -131,5 +131,128 @@ describe("inCategory", () => {
 
   it("counts an uncovered remainder as uncategorised", () => {
     expect(inCategory({ ...costco, amount: -90 }, "uncategorised")).toBe(true);
+  });
+});
+
+describe("validateSplits, over the total", () => {
+  const p = (category_id: number | null, amount: number) => ({ category_id, amount });
+  it("says the pieces are over before asking for a missing amount", () => {
+    expect(validateSplits(29, [p(1, 40), p(2, 0)])).toEqual({ left: -11, problem: "over" });
+    expect(validateSplits(-29, [p(1, -40), p(2, NaN)])).toEqual({ left: 11, problem: "over" });
+  });
+});
+
+describe("expandSplits", () => {
+  // The owner's case: +$29 in, split into "To be paid back" $19 and Gifts $10.
+  const payback = 7, gifts = 8;
+  const applePay = txn({
+    id: 5, amount: 29, payee: "Transfer from Apple Pay", category_id: null, category_source: "manual",
+    splits: [piece(11, payback, 19), piece(12, gifts, 10)],
+  });
+
+  it("leaves a transaction that is not split as one row", () => {
+    const rows = expandSplits([txn()]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ id: 1, key: "1", amount: -85.5, category_id: 1 });
+    expect(rows[0].part).toBeUndefined();
+  });
+
+  it("makes each piece its own row, with its own amount and category", () => {
+    const rows = expandSplits([applePay]);
+    expect(rows.map((r) => [r.key, r.amount, r.category_id, r.part?.index, r.part?.of])).toEqual([
+      ["5:1", 19, payback, 1, 2],
+      ["5:2", 10, gifts, 2, 2],
+    ]);
+    for (const r of rows) {
+      expect(r).toMatchObject({ id: 5, posted: applePay.posted, payee: "Transfer from Apple Pay", account_id: 1, splits: [] });
+      expect(wholeOf(r)).toBe(applePay);
+    }
+  });
+
+  it("filters to a category by part: only the $19 part is To be paid back, at $19", () => {
+    const rows = expandSplits([applePay, txn({ id: 6, amount: -4, category_id: gifts })]);
+    const paidBack = rows.filter((r) => inCategory(r, payback));
+    expect(paidBack.map((r) => r.amount)).toEqual([19]);
+    expect(rows.filter((r) => inCategory(r, gifts)).map((r) => r.amount)).toEqual([10, -4]);
+  });
+
+  it("adds up to the transaction: nothing counted twice, nothing lost", () => {
+    const rows = expandSplits([applePay, costco, { ...costco, id: 9, amount: -90 }]);
+    const sum = (xs: { amount: number }[]) => Math.round(xs.reduce((s, x) => s + x.amount, 0) * 100);
+    expect(sum(rows)).toBe(sum([applePay, costco, { amount: -90 }]));
+    expect(rows.flatMap(piecesOf)).toHaveLength(rows.length);
+  });
+
+  it("adds a part for what the pieces no longer cover after the bank changed the amount", () => {
+    const rows = expandSplits([{ ...costco, amount: -90 }]);
+    expect(rows).toHaveLength(3);
+    expect(rows[2]).toMatchObject({ amount: -4.5, category_id: null, part: { index: 3, of: 3, remainder: true } });
+    expect(piecesOf(rows[2])).toEqual([{ category_id: null, amount: -4.5, remainder: true }]);
+  });
+
+  it("passes rows already expanded through unchanged", () => {
+    const once = expandSplits([applePay, txn()]);
+    expect(expandSplits(once)).toEqual(once);
+  });
+});
+
+describe("piecesWithCategory", () => {
+  it("moves one part to another category and keeps the rest", () => {
+    const [, second] = expandSplits([costco]);
+    expect(piecesWithCategory(second.part!, 3)).toEqual([{ category_id: 1, amount: -60 }, { category_id: 3, amount: -25.5 }]);
+  });
+
+  it("turns the remainder part into a piece, so the pieces add up again", () => {
+    const rows = expandSplits([{ ...costco, amount: -90 }]);
+    const pieces = piecesWithCategory(rows[2].part!, 2);
+    expect(pieces).toEqual([{ category_id: 1, amount: -60 }, { category_id: 2, amount: -25.5 }, { category_id: 2, amount: -4.5 }]);
+    expect(validateSplits(-90, pieces).problem).toBeNull();
+  });
+});
+
+describe("fillRemainder", () => {
+  const none = [false, false];
+
+  it("puts what is left of the total in the other piece: $29 with 10 typed leaves 19", () => {
+    expect(fillRemainder(29, ["29.00", "10"], [false, true], 1)).toEqual(["19.00", "10"]);
+    expect(fillRemainder(29, ["10", ""], [true, false], 0)).toEqual(["10", "19.00"]);
+  });
+
+  it("works in sizes whichever way the money moved", () => {
+    expect(fillRemainder(-85.5, ["60", ""], [true, false], 0)).toEqual(["60", "25.50"]);
+    expect(fillRemainder(85.5, ["60", ""], [true, false], 0)).toEqual(["60", "25.50"]);
+  });
+
+  it("never fills the piece being typed into", () => {
+    expect(fillRemainder(29, ["5", "1"], none, 1)).toEqual(["28.00", "1"]);
+  });
+
+  it("changes nothing once every other piece has been typed into", () => {
+    expect(fillRemainder(29, ["5", "1"], [true, true], 1)).toEqual(["5", "1"]);
+  });
+
+  it("with more pieces, fills the last untouched one holding an amount, else the last untouched", () => {
+    // A new split: the first piece holds the whole; a third piece was added.
+    expect(fillRemainder(85.5, ["85.50", "", "20"], [false, false, true], 2)).toEqual(["65.50", "", "20"]);
+    expect(fillRemainder(85.5, ["50", "", ""], [true, false, false], 0)).toEqual(["50", "", "35.50"]);
+    expect(fillRemainder(85.5, ["50", "", "30"], [true, false, true], 2)).toEqual(["50", "5.50", "30"]);
+  });
+
+  it("stops at zero when the others are already more than the total", () => {
+    const filled = fillRemainder(29, ["29.00", "40"], [false, true], 1);
+    expect(filled).toEqual(["0.00", "40"]);
+    expect(validateSplits(29, filled.map((a) => ({ category_id: null, amount: Number(a) }))).problem).toBe("over");
+  });
+
+  it("counts an unreadable amount as nothing", () => {
+    expect(fillRemainder(29, ["", "abc"], [false, true], 1)).toEqual(["29.00", "abc"]);
+  });
+
+  it("refills from all the rest when a piece was removed", () => {
+    expect(fillRemainder(85.5, ["55.50", "20"], [false, true], -1)).toEqual(["65.50", "20"]);
+  });
+
+  it("adds up to the cent", () => {
+    expect(fillRemainder(0.3, ["0.1", ""], [true, false], 0)).toEqual(["0.1", "0.20"]);
   });
 });

@@ -1,32 +1,31 @@
 import { useState } from "react";
 import { useSetSplits } from "../../data/queries";
 import { useOfferSplitUndo } from "../../data/undo";
-import { validateSplits, type Piece, type SplitProblem } from "../../domain/splits";
+import { validateSplits, dollarsOf, fillRemainder, type Piece, type SplitProblem } from "../../domain/splits";
 import { money } from "../../ui/format";
 import { Button } from "../../ui/components";
 import type { BankTransaction, Category } from "../../domain/types";
 
-interface Draft { category_id: number | null; amount: string }
-
-/** A typed amount in dollars. Blank or nonsense is NaN, which the check
- *  reports as a piece with no amount. */
-function dollarsOf(text: string): number {
-  const cleaned = text.replace(/[$,\s]/g, "");
-  if (cleaned === "") return NaN;
-  const n = Number(cleaned);
-  return Number.isFinite(n) ? Math.abs(n) : NaN;
-}
+/** `edited`: the owner typed this amount, so the remainder never lands here. */
+interface Draft { category_id: number | null; amount: string; edited: boolean }
 
 /** A split row opens on its pieces; any other on its category holding all of
  *  it, beside an empty piece to type into. */
 function firstDrafts(t: BankTransaction): Draft[] {
   if (t.splits.length > 0) {
-    return t.splits.map((s) => ({ category_id: s.category_id, amount: Math.abs(s.amount).toFixed(2) }));
+    return t.splits.map((s) => ({ category_id: s.category_id, amount: Math.abs(s.amount).toFixed(2), edited: false }));
   }
   return [
-    { category_id: t.category_id, amount: Math.abs(t.amount).toFixed(2) },
-    { category_id: null, amount: "" },
+    { category_id: t.category_id, amount: Math.abs(t.amount).toFixed(2), edited: false },
+    { category_id: null, amount: "", edited: false },
   ];
+}
+
+/** Put the remainder in the last piece not typed into, after piece `changed`
+ *  changed (-1: one was removed). */
+function refill(total: number, drafts: Draft[], changed: number): Draft[] {
+  const amounts = fillRemainder(total, drafts.map((d) => d.amount), drafts.map((d) => d.edited), changed);
+  return drafts.map((d, i) => (amounts[i] === d.amount ? d : { ...d, amount: amounts[i] }));
 }
 
 function statusLine(problem: SplitProblem | null, left: number, total: number): string {
@@ -42,8 +41,9 @@ function statusLine(problem: SplitProblem | null, left: number, total: number): 
 /**
  * Divide one transaction across categories. Amounts are typed as plain
  * positive numbers and take the transaction's sign, so a refund splits the
- * same way a purchase does. Save stays disabled until the pieces add up;
- * Rust checks the same rules again.
+ * same way a purchase does. Typing an amount fills the remainder into the last
+ * piece not typed into yet, so the pieces add up as you go. Save stays
+ * disabled until they do; Rust checks the same rules again.
  */
 export function SplitEditor({ txn, categories, onDone }: {
   txn: BankTransaction;
@@ -62,6 +62,8 @@ export function SplitEditor({ txn, categories, onDone }: {
   const edit = (change: (prev: Draft[]) => Draft[]) => { if (setSplits.isError) setSplits.reset(); setDrafts(change); };
   const update = (i: number, change: Partial<Draft>) =>
     edit((prev) => prev.map((d, j) => (j === i ? { ...d, ...change } : d)));
+  const typeAmount = (i: number, amount: string) =>
+    edit((prev) => refill(txn.amount, prev.map((d, j) => (j === i ? { ...d, amount, edited: true } : d)), i));
 
   function save(next: Piece[], title: string) {
     // txn is the row as it was before: exactly what Undo puts back.
@@ -76,7 +78,8 @@ export function SplitEditor({ txn, categories, onDone }: {
   return (
     <div style={{ display: "grid", gap: 8, padding: "6px 0 10px" }}>
       <div className="muted" style={{ fontSize: 12 }}>
-        Split {money(Math.abs(txn.amount))} from {txn.payee ?? txn.description} across categories.
+        Split {money(Math.abs(txn.amount))} from {txn.payee ?? txn.description} into separate transactions.
+        Each piece then shows, filters and counts on its own.
       </div>
       {drafts.map((d, i) => (
         <div key={i} className="row center" style={{ gap: 8 }}>
@@ -91,20 +94,20 @@ export function SplitEditor({ txn, categories, onDone }: {
           </select>
           <input
             value={d.amount}
-            onChange={(e) => update(i, { amount: e.target.value })}
+            onChange={(e) => typeAmount(i, e.target.value)}
             inputMode="decimal" placeholder="0.00"
             aria-label={`Amount for piece ${i + 1}`}
             style={{ width: 96 }}
           />
           {drafts.length > 2 && (
             <Button variant="ghost" size="sm" aria-label={`Remove piece ${i + 1}`}
-              onClick={() => edit((prev) => prev.filter((_, j) => j !== i))}>×</Button>
+              onClick={() => edit((prev) => refill(txn.amount, prev.filter((_, j) => j !== i), -1))}>×</Button>
           )}
         </div>
       ))}
       <div className="row center" style={{ gap: 10, flexWrap: "wrap" }}>
         <Button variant="ghost" size="sm"
-          onClick={() => edit((prev) => [...prev, { category_id: null, amount: "" }])}>Add piece</Button>
+          onClick={() => edit((prev) => [...prev, { category_id: null, amount: "", edited: false }])}>Add piece</Button>
         <span className={problem == null ? "muted" : "neg"} style={{ fontSize: 12 }} aria-live="polite">
           {statusLine(problem, left, txn.amount)}
         </span>
@@ -115,6 +118,7 @@ export function SplitEditor({ txn, categories, onDone }: {
           onClick={() => save(pieces, "Split saved")}>Save split</Button>
         {txn.splits.length > 0 && (
           <Button size="sm" variant="secondary" disabled={setSplits.isPending}
+            title="Merge the pieces back into one transaction"
             onClick={() => save([], "Split removed")}>Unsplit</Button>
         )}
         <Button size="sm" variant="ghost" disabled={setSplits.isPending} onClick={onDone}>Cancel</Button>

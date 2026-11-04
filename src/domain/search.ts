@@ -1,5 +1,5 @@
 import type { Account, BankTransaction, Category } from "./types";
-import { inCategory, piecesOf } from "./splits";
+import { inCategory, partOf, piecesOf } from "./splits";
 
 /**
  * `~` is a bare number: it matches that amount to the cent, or the same text in
@@ -46,7 +46,9 @@ function sizeMatches(amount: number, op: Exclude<AmountOp, "~">, value: number):
  * Every transaction matching the search, newest first. Each word must appear
  * somewhere — payee, description, memo, note, category or account — and each
  * size comparison must hold. The caller decides which transactions are
- * eligible (removed ones, hidden accounts); this only narrows them.
+ * eligible (removed ones, hidden accounts); this only narrows them. Given the
+ * rows of `expandSplits`, each part of a split matches on its own category,
+ * note and amount; a bare amount also finds a part by its whole transaction.
  */
 export function searchTransactions(
   txns: BankTransaction[],
@@ -69,12 +71,15 @@ export function searchTransactions(
         t.payee, t.description, t.memo, t.note,
         ...piecesOf(t).map((p) => (p.category_id == null ? null : categoryName.get(p.category_id))),
         ...t.splits.map((s) => s.note),
+        partOf(t)?.note,
         accountName.get(t.account_id),
       ].filter(Boolean).join("\n").toLowerCase();
       return words.every((w) => {
         if (haystack.includes(w)) return true;
         const bare = readAmount(w);
-        return bare != null && cents(t.amount) === cents(bare.value);
+        if (bare == null) return false;
+        const whole = partOf(t)?.parent.amount;
+        return cents(t.amount) === cents(bare.value) || (whole != null && cents(whole) === cents(bare.value));
       });
     })
     // Stable, so rows from the same day keep the order they arrived in.

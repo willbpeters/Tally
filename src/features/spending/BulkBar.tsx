@@ -3,6 +3,7 @@ import { useOfferUndo, askBeforeRemove } from "../../data/undo";
 import { useToast } from "../../ui/toast";
 import { askToConfirm } from "../../ui/confirm";
 import { money } from "../../ui/format";
+import { partOf, wholeOf } from "../../domain/splits";
 import type { BankTransaction, Category } from "../../domain/types";
 
 const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
@@ -11,7 +12,8 @@ const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
  * What can be done to every selected row at once, in a bar along the bottom
  * of the window: mark them reviewed, give them one category, or remove them
  * from spending. Each offers Undo. A split row keeps its pieces when the rest
- * take a category.
+ * take a category. A ticked part of a split stands for its whole transaction
+ * when reviewing or removing (its parts share those), and counts once.
  */
 export function BulkBar({ selected, categories, onClear }: {
   selected: BankTransaction[];
@@ -25,10 +27,15 @@ export function BulkBar({ selected, categories, onClear }: {
   const toast = useToast();
   const fail = (title: string) => (e: unknown) => toast.push({ tone: "neg", title, body: String(e) });
 
+  // The transactions the ticked rows stand for, each once: two ticked parts
+  // of one split are one transaction to review or remove.
+  const txns = [...new Map(selected.map((t) => [t.id, wholeOf(t)])).values()];
   // Approving a reviewed row would only pin its category, so leave those be.
-  const unreviewed = selected.filter((t) => !t.reviewed);
-  const whole = selected.filter((t) => t.splits.length === 0);
-  const removable = selected.filter((t) => !t.removed);
+  const unreviewed = txns.filter((t) => !t.reviewed);
+  const whole = txns.filter((t) => t.splits.length === 0);
+  const removable = txns.filter((t) => !t.removed);
+  // Splits among them, which keep their pieces when the rest take a category.
+  const splitsKept = new Set(selected.filter((t) => partOf(t) || t.splits.length > 0).map((t) => t.id)).size;
   const net = selected.reduce((s, t) => s + t.amount, 0);
   const busy = approve.isPending || setCategory.isPending || setRemoved.isPending;
 
@@ -40,7 +47,7 @@ export function BulkBar({ selected, categories, onClear }: {
   }
 
   function categoriseAll(categoryId: number | null) {
-    const kept = selected.length - whole.length;
+    const kept = splitsKept;
     const name = categoryId == null ? "Uncategorised" : categories.find((c) => c.id === categoryId)?.name ?? "that category";
     setCategory.mutate({ ids: whole.map((t) => t.id), categoryId }, {
       onSuccess: () => {
@@ -70,7 +77,7 @@ export function BulkBar({ selected, categories, onClear }: {
       <span className="bulk-bar-gap" />
       <button className="btn btn-secondary btn-sm" disabled={busy || unreviewed.length === 0} onClick={reviewAll}
         title={unreviewed.length === 0 ? "All of these are already reviewed" : undefined}>
-        Mark reviewed{unreviewed.length > 0 && unreviewed.length < selected.length ? ` (${unreviewed.length})` : ""}
+        Mark reviewed{unreviewed.length > 0 && unreviewed.length < txns.length ? ` (${unreviewed.length})` : ""}
       </button>
       <select aria-label="Categorize selected" value="" disabled={busy || whole.length === 0}
         onChange={(e) => categoriseAll(e.target.value === "none" ? null : Number(e.target.value))}>

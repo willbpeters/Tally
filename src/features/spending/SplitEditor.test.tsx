@@ -175,6 +175,64 @@ describe("SplitEditor", () => {
     expect(await screen.findByRole("button", { name: "Undo" })).toBeInTheDocument();
   });
 
+  it("fills the other piece with what is left as an amount is typed", () => {
+    // The owner's example: +$29 money in, 10 of it Gifts, the rest to be paid back.
+    renderEditor(txn({ amount: 29, category_id: null }));
+    type(amount(2), "10");
+    expect(amount(1).value).toBe("19.00");
+    expect(screen.getByText("Adds up to $29.00.")).toBeInTheDocument();
+    type(amount(2), "12.5");
+    expect(amount(1).value).toBe("16.50");
+  });
+
+  it("fills the remainder for spending too, and saves it with the spending sign", async () => {
+    const onDone = renderEditor();
+    type(amount(1), "60");
+    expect(amount(2).value).toBe("25.50");
+    fireEvent.click(screen.getByRole("button", { name: "Save split" }));
+    await waitFor(() => expect(onDone).toHaveBeenCalled());
+    expect(setSplits).toHaveBeenCalledWith(7, [
+      { category_id: 1, amount: -60, note: null },
+      { category_id: null, amount: -25.5, note: null },
+    ]);
+  });
+
+  it("with three pieces, puts the remainder in the last one not typed into", () => {
+    renderEditor();
+    fireEvent.click(screen.getByRole("button", { name: "Add piece" }));
+    type(amount(1), "50");
+    expect(amount(3).value).toBe("35.50");
+    expect(amount(2).value).toBe("");
+    type(amount(3), "30");
+    // Piece 2 is the only one left untouched, so it takes the rest.
+    expect(amount(2).value).toBe("5.50");
+    expect(screen.getByText("Adds up to $85.50.")).toBeInTheDocument();
+    // Every piece typed into: nothing moves, and the check says what is off.
+    type(amount(2), "1");
+    expect(amount(1).value).toBe("50");
+    expect(amount(3).value).toBe("30");
+    expect(screen.getByText("$4.50 left to assign.")).toBeInTheDocument();
+  });
+
+  it("says a piece is more than the transaction, rather than going below zero", () => {
+    renderEditor(txn({ amount: 29, category_id: null }));
+    type(amount(2), "40");
+    expect(amount(1).value).toBe("0.00");
+    expect(screen.getByText("$11.00 more than the transaction.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save split" })).toBeDisabled();
+  });
+
+  it("refills the remainder when a piece is removed", () => {
+    renderEditor();
+    fireEvent.click(screen.getByRole("button", { name: "Add piece" }));
+    type(amount(3), "20");
+    type(amount(2), "10");
+    expect(amount(1).value).toBe("55.50");
+    fireEvent.click(screen.getByRole("button", { name: "Remove piece 2" }));
+    expect(amount(1).value).toBe("65.50");
+    expect(screen.getByText("Adds up to $85.50.")).toBeInTheDocument();
+  });
+
   it("cancels without saving", () => {
     const onDone = renderEditor();
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
