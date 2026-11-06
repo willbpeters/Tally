@@ -2,7 +2,7 @@
   <!-- Tally's app icon: an italic lowercase "t" with its crossbar slanted through
        it, like a tally strike, in the app's pine green on no background. Scaled
        up to fill the square, since there is no tile around it. Source for every
-       icon size: npx tauri icon app-icon.svg
+       icon size: npx tauri icon brand/app-icon.svg
        With a background, for the README and elsewhere: brand/tally-logo.svg -->
   <g transform="translate(512 512) scale(1.22) translate(-522 -512)"
      fill="none" stroke="#0F6B4F" stroke-width="112">

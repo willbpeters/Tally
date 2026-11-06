@@ -237,9 +237,11 @@ the *Releasing* section of [`docs/HANDOFF.md`](docs/HANDOFF.md) for details.
 │   │                        device sync
 │   ├── windows/hooks.nsh    Installer customizations
 │   └── tauri.conf.json      App configuration
+├── brand/                   Logo and app icon sources
+├── public/                  Static assets served by Vite
 ├── scripts/                 Version bump and dev launcher
 ├── .github/workflows/       Release pipeline
-└── docs/                    Architecture notes, roadmap, design specs
+└── docs/                    Architecture notes, roadmap, design specs and mockups
 ```
 
 ## Roadmap

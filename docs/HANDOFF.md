@@ -852,7 +852,7 @@ G. **Dividends in returns** — dividends add cash but count toward no gain
 
 - **Budgeting spec:** `docs/superpowers/specs/2026-09-07-budgeting-design.md`
 - **Design canvas:** the four dashboard directions and the type study live in
-  `design/ledgerly-dashboard/` as `.dc.html` sources; the 2.5MB seeded canvas is
+  `docs/design/ledgerly-dashboard/` as `.dc.html` sources; the 2.5MB seeded canvas is
   git-ignored and rebuilt from them.
 - **Design specs:** `docs/superpowers/specs/2026-09-04-investments-tracker-design.md`
   and `docs/superpowers/specs/2026-09-07-ui-redesign-and-simplefin-design.md`
