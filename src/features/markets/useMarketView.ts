@@ -2,9 +2,10 @@ import { useMemo } from "react";
 import { localIsoDate } from "../../domain/dates";
 import {
   useSecurities, useMarketNews, useMarketEarnings, useMarketProfiles,
-  useMarketIndices, useLatestPrices, usePreviousPrices,
+  useMarketIndices,
 } from "../../data/queries";
 import { usePortfolio } from "../../data/usePortfolio";
+import { useLivePrices } from "../../data/useLivePrices";
 import { buildMarketView, todayMove } from "../../domain/market";
 
 /**
@@ -22,8 +23,7 @@ export function useMarketView() {
   const { data: earnings = [] } = useMarketEarnings();
   const { data: profiles = [] } = useMarketProfiles();
   const { data: indices = [] } = useMarketIndices();
-  const { data: latest = [] } = useLatestPrices();
-  const { data: previous = [] } = usePreviousPrices();
+  const { latest, previous } = useLivePrices();
   const { holdings, summary } = usePortfolio();
 
   return useMemo(() => {

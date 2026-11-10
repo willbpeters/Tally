@@ -4,6 +4,7 @@ import {
   useAccounts, useTransactions, useSyncedHoldings, useBankTransactions, usePriceHistoryRows, useHandAddedTotals,
   useSecurities, useMarketChart,
 } from "./queries";
+import { heldSecurities } from "./useLivePrices";
 import { reconstructSeries, type PriceRow } from "../domain/history";
 import { localKey, timeline, withIntraday, type Timeframe } from "../domain/charts";
 import type { ValuePoint } from "../domain/types";
@@ -59,14 +60,7 @@ export function useValueSeries(tf: DashboardTimeframe = "3m"): { series: ValuePo
   const { data: securities = [] } = useSecurities();
   const { data: handAdded = [], isLoading: l6 } = useHandAddedTotals();
 
-  const held = useMemo(() => {
-    const ids = new Set<number>([
-      ...synced.map((h) => h.security_id),
-      ...txns.filter((t) => t.security_id != null && (t.type === "buy" || t.type === "sell"))
-        .map((t) => t.security_id as number),
-    ]);
-    return securities.filter((s) => ids.has(s.id));
-  }, [synced, txns, securities]);
+  const held = useMemo(() => heldSecurities(synced, txns, securities), [synced, txns, securities]);
   const tickers = useMemo(() => held.map((s) => s.ticker), [held]);
   const { data: bars } = useMarketChart(tickers, tf);
 

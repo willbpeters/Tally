@@ -13,6 +13,10 @@ export function useRefreshPrices() {
       await qc.invalidateQueries({ queryKey: keys.previous });
       // The Dashboard chart's last daily point is today's close.
       await qc.invalidateQueries({ queryKey: ["prices", "history"] });
+      // Funds are priced from the live 1-day line (see `useLivePrices`). After
+      // the close it is otherwise cached for half an hour, and a fund's NAV
+      // landing in the stored closes would sit beside a stale estimate.
+      await qc.invalidateQueries({ queryKey: ["market", "chart", "1d"] });
 
       // Recompute total value with the same derivation the screens use, then
       // record today's snapshot for the chart.

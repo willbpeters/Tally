@@ -25,8 +25,8 @@ fn unix_to_date(secs: i64) -> String {
 }
 
 /// Parse Yahoo chart JSON into (YYYY-MM-DD, close) rows, oldest first.
-/// Skips null closes; falls back to the meta regular-market price if the
-/// daily arrays are absent.
+/// Skips null closes; adds the meta regular-market price when it is from a
+/// later day than the last bar (see `parse_chart_result`).
 pub fn parse_chart_json(body: &str) -> Vec<(String, f64)> {
     let v: Value = match serde_json::from_str(body) {
         Ok(v) => v,
@@ -50,13 +50,19 @@ pub fn parse_chart_result(result: &Value) -> Vec<(String, f64)> {
         }
     }
 
-    if out.is_empty() {
-        let meta = &result["meta"];
-        if let (Some(price), Some(secs)) = (
-            meta["regularMarketPrice"].as_f64(),
-            meta["regularMarketTime"].as_i64(),
-        ) {
-            out.push((unix_to_date(secs), price));
+    // A mutual fund's bar for the day appears with a blank close and stays
+    // blank for hours after its NAV is published; the NAV itself is only in
+    // the meta. Without this, yesterday's NAV stood as the latest price all
+    // evening and the portfolio read a whole day's move short. The meta's day
+    // is New York's: a NAV published at 8 pm is already tomorrow in UTC.
+    let meta = &result["meta"];
+    if let (Some(price), Some(secs)) = (
+        meta["regularMarketPrice"].as_f64(),
+        meta["regularMarketTime"].as_i64(),
+    ) {
+        let date = unix_to_date(secs + meta["gmtoffset"].as_i64().unwrap_or(0));
+        if out.last().is_none_or(|(last, _)| *last < date) {
+            out.push((date, price));
         }
     }
     out
@@ -108,6 +114,32 @@ mod tests {
         let rows = parse_chart_json(body);
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].1, 100.25);
+    }
+
+    // What Yahoo sent for SWPPX on the evening of Mon 2026-11-09: the day's bar
+    // was there with a blank close, and the NAV it had just published (19.52)
+    // was only in the meta. Friday's 19.07 stood as the "latest" price.
+    #[test]
+    fn todays_nav_is_taken_from_the_meta_while_todays_bar_is_still_blank() {
+        let body = r#"{"chart":{"result":[{
+            "meta":{"regularMarketPrice":19.52,"regularMarketTime":1794268437,"gmtoffset":-18000},
+            "timestamp":[1793975400,1794234600],
+            "indicators":{"quote":[{"close":[19.07,null]}]}
+        }]}}"#;
+        let rows = parse_chart_json(body);
+        assert_eq!(rows, vec![("2026-11-06".to_string(), 19.07), ("2026-11-09".to_string(), 19.52)]);
+    }
+
+    #[test]
+    fn a_nav_published_after_midnight_utc_keeps_its_new_york_date() {
+        // 20:30 New York on the 9th is 01:30 UTC on the 10th.
+        let body = r#"{"chart":{"result":[{
+            "meta":{"regularMarketPrice":19.52,"regularMarketTime":1794274200,"gmtoffset":-18000},
+            "timestamp":[1793975400],
+            "indicators":{"quote":[{"close":[19.07]}]}
+        }]}}"#;
+        let rows = parse_chart_json(body);
+        assert_eq!(rows.last(), Some(&("2026-11-09".to_string(), 19.52)));
     }
 
     #[test]

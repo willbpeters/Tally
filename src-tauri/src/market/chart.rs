@@ -93,6 +93,8 @@ pub fn max_url(symbol: &str, tf: &Timeframe, now: i64) -> String {
 
 /// Regular-session length, open to close.
 const SESSION_SECS: i64 = 6 * 3600 + 30 * 60;
+/// The regular session's open, after local midnight: 09:30.
+const OPEN_SECS: i64 = 9 * 3600 + 30 * 60;
 
 /// Each symbol in a spark response as a `ChartSeries`.
 ///
@@ -123,8 +125,10 @@ fn parse_result(symbol: &str, res: &Value, tf: &Timeframe, now: i64) -> Option<C
     let symbol = symbol.to_string();
     let granularity = res["meta"]["dataGranularity"].as_str().unwrap_or(tf.interval);
     let shift = if is_intraday(tf.interval) && !is_intraday(granularity) { SESSION_SECS } else { 0 };
-    let ts = res["timestamp"].as_array()?;
-    let closes = res["indicators"]["quote"][0]["close"].as_array()?;
+    // A mutual fund on a 1-day chart comes back with no bars at all, only a meta.
+    let none = Vec::new();
+    let ts = res["timestamp"].as_array().unwrap_or(&none);
+    let closes = res["indicators"]["quote"][0]["close"].as_array().unwrap_or(&none);
     let mut points: Vec<(i64, f64)> = ts
         .iter()
         .zip(closes)
@@ -138,9 +142,32 @@ fn parse_result(symbol: &str, res: &Value, tf: &Timeframe, now: i64) -> Option<C
         }
         points.retain(|(t, _)| *t >= cut);
     }
-    (!points.is_empty()).then_some(ChartSeries {
-        symbol, previous_close, points, daily_only: shift != 0, estimated: false,
+    let daily_only = shift != 0;
+    if daily_only {
+        if let Some(close) = published_close(&res["meta"]) {
+            if points.last().is_none_or(|(t, _)| *t < close.0) { points.push(close); }
+        }
+    }
+    // A fund with no bars is still worth returning when its last close is
+    // known: that close is what `estimate_from_proxy` builds today on. Dropped,
+    // the fund had no estimate and sat at the last session's price all day.
+    (!points.is_empty() || (daily_only && previous_close.is_some())).then_some(ChartSeries {
+        symbol, previous_close, points, daily_only, estimated: false,
     })
+}
+
+/// A fund's latest NAV from the meta, placed at the close of the New York day
+/// it was published on, as its daily bars are.
+///
+/// Yahoo puts a fund's NAV in the meta hours before the day's bar has it — the
+/// bar is missing or blank all evening — so without this the real price never
+/// replaced the estimate until the next morning.
+fn published_close(meta: &Value) -> Option<(i64, f64)> {
+    let price = meta["regularMarketPrice"].as_f64()?;
+    let time = meta["regularMarketTime"].as_i64()?;
+    let offset = meta["gmtoffset"].as_i64().unwrap_or(0);
+    let midnight = (time + offset).div_euclid(DAY) * DAY - offset;
+    Some((midnight + OPEN_SECS + SESSION_SECS, price))
 }
 
 /// A mutual fund's day, estimated bar by bar from an ETF tracking the same
@@ -330,6 +357,54 @@ mod tests {
         let got = parse_spark(&body("15m", &[older, old, recent], "[1.0,2.0,3.0]"), &tf, NOW);
         assert_eq!(got[0].points, vec![(recent, 3.0)]);
         assert_eq!(got[0].previous_close, Some(2.0));
+    }
+
+    // Yahoo's 1-day answer for a mutual fund has no bars at all, only a meta.
+    // Monday 2026-11-09, New York: session 14:30–21:00 UTC.
+    const MON_OPEN: i64 = 1_794_234_600;
+    const MON_CLOSE: i64 = 1_794_258_000;
+
+    fn fund_meta_only(price_and_time: Option<(f64, i64)>) -> String {
+        let extra = price_and_time
+            .map(|(p, t)| format!(r#","regularMarketPrice":{p},"regularMarketTime":{t}"#))
+            .unwrap_or_default();
+        format!(
+            r#"{{"spark":{{"result":[{{"symbol":"SWPPX","response":[{{
+                "meta":{{"dataGranularity":"1d","chartPreviousClose":19.07,"gmtoffset":-18000{extra}}},
+                "indicators":{{"quote":[{{}}]}}
+            }}]}}]}}}}"#
+        )
+    }
+
+    #[test]
+    fn a_fund_with_no_bars_today_still_comes_back_with_its_previous_close() {
+        let tf = timeframe("1d").unwrap();
+        let got = parse_spark(&fund_meta_only(None), &tf, NOW);
+        assert_eq!(got.len(), 1, "dropping it left the fund with no estimate");
+        assert_eq!(got[0].previous_close, Some(19.07));
+        assert!(got[0].points.is_empty());
+        assert!(got[0].daily_only);
+    }
+
+    #[test]
+    fn a_nav_published_today_lands_at_todays_close() {
+        let tf = timeframe("1d").unwrap();
+        let got = parse_spark(&fund_meta_only(Some((19.52, 1_794_268_437))), &tf, NOW);
+        assert_eq!(got[0].points, vec![(MON_CLOSE, 19.52)]);
+    }
+
+    #[test]
+    fn a_fund_with_no_bars_today_is_estimated_from_its_etf() {
+        let tf = timeframe("1d").unwrap();
+        // Friday's NAV, published Friday evening: not news on Monday.
+        let mut fetched = parse_spark(&fund_meta_only(Some((19.07, MON_OPEN - 2 * DAY - 39_000))), &tf, NOW);
+        fetched.push(series("IVV", Some(738.68), &[(MON_OPEN, 746.70), (MON_CLOSE - 300, 756.05)], false));
+        let got = with_estimates(&["SWPPX".to_string()], fetched);
+        assert_eq!(got.len(), 1);
+        assert!(got[0].estimated);
+        assert_eq!(got[0].previous_close, Some(19.07));
+        let last = got[0].points.last().unwrap().1;
+        assert!((last - 19.07 * 756.05 / 738.68).abs() < 1e-9, "{last}");
     }
 
     #[test]
