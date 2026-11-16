@@ -10,7 +10,7 @@ const { AddTransactionForm } = await import("./AddTransactionForm");
 
 const acct = (id: number, name: string, type: Account["type"], source: Account["source"] = "simplefin") =>
   ({ id, name, type, source, hidden: false }) as Account;
-const accounts = [acct(1, "Card (9849)", "credit"), acct(2, "Brokerage", "brokerage"), acct(3, "Cash", "cash", "manual")];
+const accounts = [acct(1, "Card (1234)", "credit"), acct(2, "Brokerage", "brokerage"), acct(3, "Cash", "cash", "manual")];
 const categories: Category[] = [{ id: 5, name: "Eating Out", kind: "spending", colour: "cat-1", sort: 10, is_builtin: false }];
 
 function fill(payee: string, amount: string) {
@@ -23,7 +23,7 @@ describe("AddTransactionForm", () => {
     render(<AddTransactionForm accounts={accounts} categories={categories} today="2026-10-29" onClose={vi.fn()} />);
     const picker = screen.getByLabelText("Account");
     expect(picker).toHaveValue("3");
-    expect([...picker.querySelectorAll("option")].map((o) => o.textContent)).toEqual(["Card (9849)", "Cash"]);
+    expect([...picker.querySelectorAll("option")].map((o) => o.textContent)).toEqual(["Card (1234)", "Cash"]);
     expect(screen.getByLabelText("Date")).toHaveValue("2026-10-29");
   });
 

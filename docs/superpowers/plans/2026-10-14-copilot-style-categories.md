@@ -1280,7 +1280,7 @@ git commit -m "feat(spending): To review list with approve and mark all reviewed
 
 ### Task 9: Check in the running app, then record it
 
-- [ ] **Step 1: Run it** — double-click **Ledgerly (test)**. The v6 migration runs at launch (a `pre-migration` backup is taken first; it appears in Settings → Backups).
+- [ ] **Step 1: Run it** — double-click **Tally (test)**. The v6 migration runs at launch (a `pre-migration` backup is taken first; it appears in Settings → Backups).
 - [ ] **Step 2: Check, with the owner:**
   1. Spending shows **To review (n)**, where n is roughly the transactions still uncategorised.
   2. Target, Costco, Chick-fil-A and the other top payees carry categories.

@@ -1,4 +1,4 @@
-# Ledgerly — UI Redesign + SimpleFIN Sync (design)
+# Tally — UI Redesign + SimpleFIN Sync (design)
 
 **Date:** 2026-09-07
 **Status:** approved by owner, ready for planning
@@ -191,7 +191,7 @@ CREATE TABLE IF NOT EXISTS synced_holdings (
 - `client.rs` — `reqwest::blocking` calls (claim POST, accounts GET) with the
   same User-Agent pattern as the price provider. Maps 402/403 to typed errors.
 - `sync.rs` — `apply` logic, one SQLite transaction per SimpleFIN account:
-  1. Find the Ledgerly account with `external_id = sf.id`. If none, create it:
+  1. Find the Tally account with `external_id = sf.id`. If none, create it:
      name `sf.name`, institution `org.name`, `source='simplefin'`,
      type `brokerage` if `holdings` non-empty else `cash`.
   2. Set `synced_balance = balance`, `last_synced_at = now`.

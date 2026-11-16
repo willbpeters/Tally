@@ -8,7 +8,7 @@
 > on GitHub, it will automatically pull new updates and stuff when I decide to
 > push a new update. … I'm kind of tired of using the command line launcher.
 
-Today Ledgerly is started by `scripts/start-ledgerly.cmd`, which runs
+Today Tally is started by `scripts/start-tally.cmd`, which runs
 `npm run tauri dev` in a console window. The goal is a normal installed app
 that updates itself from GitHub, only when the owner decides to release.
 
@@ -52,7 +52,7 @@ that updates itself from GitHub, only when the owner decides to release.
 - Rust: `tauri-plugin-updater` and `tauri-plugin-process` (for relaunch),
   registered in `lib.rs`; permissions `updater:default`, `process:allow-restart`.
   Config: endpoint
-  `https://github.com/willbpeters/Ledgerly/releases/latest/download/latest.json`,
+  `https://github.com/willbpeters/Tally/releases/latest/download/latest.json`,
   `windows.installMode: "passive"` (a progress bar, no wizard).
 - npm packages `@tauri-apps/plugin-updater` and `@tauri-apps/plugin-process`,
   pinned to their crates' major.minor (see HANDOFF: `tauri build` refuses a mismatch).
@@ -72,11 +72,11 @@ that updates itself from GitHub, only when the owner decides to release.
 ## Install and shortcuts
 
 - The NSIS installer installs per-user (no admin prompt) and adds a Start Menu
-  and Desktop shortcut named **Ledgerly**.
+  and Desktop shortcut named **Tally**.
 - First install shows SmartScreen's "Windows protected your PC" (no paid code
   signing certificate): *More info → Run anyway*. Smart App Control is already
   off on this machine (HANDOFF).
-- `start-ledgerly.cmd` and its "Ledgerly (test)" shortcut stay, for trying
+- `start-tally.cmd` and its "Tally (test)" shortcut stay, for trying
   unreleased work. Both share one database, so they shouldn't run at once.
 
 ## Testing
@@ -85,7 +85,7 @@ that updates itself from GitHub, only when the owner decides to release.
   install error with Try again, no update, check throws (offline) → nothing.
 - `scripts/set-version` test: writes all three files, rejects a bad version.
 - End to end, once: release `0.1.1`, install it from the Release page; release
-  `0.1.2`; reopen Ledgerly, see the banner, install, confirm it says 0.1.2.
+  `0.1.2`; reopen Tally, see the banner, install, confirm it says 0.1.2.
 
 ## Not doing
 

@@ -46,11 +46,11 @@ mod tests {
     /// Runs the planner on a real export against a copy of a real database,
     /// and prints what an import would do; with `COPILOT_APPLY=1` it imports
     /// into the copy too. The original is never written. Ignored by default:
-    /// `LEDGERLY_DB=... COPILOT_CSV=... cargo test copilot_live -- --ignored --nocapture`
+    /// `TALLY_DB=... COPILOT_CSV=... cargo test copilot_live -- --ignored --nocapture`
     #[test]
     #[ignore]
     fn copilot_live_preview() {
-        let db = std::env::var("LEDGERLY_DB").expect("LEDGERLY_DB");
+        let db = std::env::var("TALLY_DB").expect("TALLY_DB");
         let csv = std::env::var("COPILOT_CSV").expect("COPILOT_CSV");
         // The preview dry-runs the import (rolled back), so it needs a
         // writable database: a throwaway copy, never the original.

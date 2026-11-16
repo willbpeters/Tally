@@ -1411,9 +1411,9 @@ mod tests {
     #[test]
     fn a_sync_taking_over_a_split_copilot_row_keeps_its_parts() {
         let conn = seeded();
-        let card = account(&conn, "Card (9849)", "credit");
+        let card = account(&conn, "Card (1234)", "credit");
         upsert_transactions(&conn, card, &[payee_txn("sf-new", "2026-07-02", -1.0, "Zqx")], &[]).unwrap();
-        let csv = format!("{COPILOT_HEADER}\n\"2026-01-05\",\"Old Diner\",\"8\",\"posted\",\"Eating Out\",\"\",\"false\",\"\",\"regular\",\"Adv\",\"9849\",\"\",\"\"\n");
+        let csv = format!("{COPILOT_HEADER}\n\"2026-01-05\",\"Old Diner\",\"8\",\"posted\",\"Eating Out\",\"\",\"false\",\"\",\"regular\",\"Adv\",\"1234\",\"\",\"\"\n");
         apply_copilot_plan(&conn, &copilot_plan(&conn, &csv)).unwrap();
         let imported: i64 = conn.query_row("SELECT id FROM bank_transactions WHERE amount=-8", [], |r| r.get(0)).unwrap();
         set_splits(&conn, imported, &[piece(&conn, Some("Eating Out"), -5.0), piece(&conn, None, -3.0)]).unwrap();
@@ -1572,10 +1572,10 @@ mod tests {
     #[test]
     fn a_matched_row_copilot_left_uncategorised_goes_back_to_to_review() {
         let conn = seeded();
-        let card = account(&conn, "Card (9849)", "credit");
+        let card = account(&conn, "Card (1234)", "credit");
         upsert_transactions(&conn, card, &[payee_txn("sf1", "2026-07-02", -12.5, "Zqx Diner")], &[]).unwrap();
         set_category(&conn, id_of(&conn, "sf1"), seed::category_id(&conn, "Groceries").unwrap(), false).unwrap();
-        let csv = export(&[copilot_row("2026-07-02", "Zqx Diner", "12.50", "", "regular", "9849")]);
+        let csv = export(&[copilot_row("2026-07-02", "Zqx Diner", "12.50", "", "regular", "1234")]);
         let plan = copilot_plan(&conn, &csv);
         assert_eq!(plan.recategorised, 1);
 
@@ -1588,7 +1588,7 @@ mod tests {
     #[test]
     fn a_second_import_changes_nothing_at_all() {
         let conn = seeded();
-        let card = account(&conn, "Card (9849)", "credit");
+        let card = account(&conn, "Card (1234)", "credit");
         let other = account(&conn, "Brokerage", "cash");
         upsert_transactions(&conn, card, &[
             payee_txn("sf1", "2026-07-02", -12.5, "Zqx Diner"),
@@ -1600,7 +1600,7 @@ mod tests {
         file_under(&conn, "golf", "Travel");
         file_under(&conn, "late", "Health");
         let csv = export(&[
-            copilot_row("2026-07-02", "Zqx Diner", "12.50", "Eating Out", "regular", "9849"),
+            copilot_row("2026-07-02", "Zqx Diner", "12.50", "Eating Out", "regular", "1234"),
             copilot_row("2026-01-06", "Haggin Oaks", "20", "Golf", "regular", ""),
             copilot_row("2026-01-07", "Haggin Oaks", "25", "Golf", "regular", ""),
         ]);
@@ -1714,7 +1714,7 @@ mod tests {
     #[test]
     fn a_category_copilot_doesnt_use_goes_and_the_preview_says_which() {
         let conn = seeded();
-        let card = account(&conn, "Card (9849)", "credit");
+        let card = account(&conn, "Card (1234)", "credit");
         let other = account(&conn, "Brokerage", "cash");
         upsert_transactions(&conn, card, &[
             payee_txn("sf1", "2026-07-01", -12.5, "Zqx Diner"),
@@ -1726,8 +1726,8 @@ mod tests {
         set_category(&conn, id_of(&conn, "poker"), seed::category_id(&conn, "Poker").unwrap(), false).unwrap();
         set_category(&conn, id_of(&conn, "sub"), seed::category_id(&conn, "Subscriptions").unwrap(), false).unwrap();
         let csv = export(&[
-            copilot_row("2026-07-01", "Zqx Diner", "12.50", "Eating Out", "regular", "9849"),
-            copilot_row("2026-07-20", "Later", "3", "Eating Out", "regular", "9849"),
+            copilot_row("2026-07-01", "Zqx Diner", "12.50", "Eating Out", "regular", "1234"),
+            copilot_row("2026-07-20", "Later", "3", "Eating Out", "regular", "1234"),
         ]);
         let plan = copilot_plan(&conn, &csv);
         assert!(plan.deletions.contains(&"Poker".to_string()));
@@ -1746,7 +1746,7 @@ mod tests {
     #[test]
     fn replacing_all_leaves_only_copilots_categories_and_deletes_no_row() {
         let conn = seeded();
-        let card = account(&conn, "Card (9849)", "credit");
+        let card = account(&conn, "Card (1234)", "credit");
         let other = account(&conn, "Brokerage", "cash");
         upsert_transactions(&conn, card, &[
             payee_txn("sf1", "2026-07-01", -12.5, "Zqx Diner"),
@@ -1759,7 +1759,7 @@ mod tests {
         set_category(&conn, id_of(&conn, "sub"), Some(subs), false).unwrap();
         set_category(&conn, id_of(&conn, "later"), Some(subs), false).unwrap();
         conn.execute("INSERT INTO budgets (category_id, month, limit_amount) VALUES (?1, NULL, 100)", [travel]).unwrap();
-        let csv = export(&[copilot_row("2026-07-01", "Zqx Diner", "12.50", "Eating Out", "regular", "9849")]);
+        let csv = export(&[copilot_row("2026-07-01", "Zqx Diner", "12.50", "Eating Out", "regular", "1234")]);
         let plan = copilot_plan(&conn, &csv);
         assert!(plan.deletions.contains(&"Travel".to_string()), "a budget doesn't keep it");
         let rows_before: i64 = conn.query_row("SELECT count(*) FROM bank_transactions", [], |r| r.get(0)).unwrap();
@@ -1781,7 +1781,7 @@ mod tests {
     #[test]
     fn clearing_categories_uncategorises_everything_and_deletes_no_row() {
         let conn = seeded();
-        let card = account(&conn, "Card (9849)", "credit");
+        let card = account(&conn, "Card (1234)", "credit");
         upsert_transactions(&conn, card, &[
             payee_txn("a", "2026-07-01", -12.5, "Zqx Diner"),
             payee_txn("b", "2026-07-02", -30.0, "Zqx Shop"),
@@ -1816,10 +1816,10 @@ mod tests {
     #[test]
     fn applying_a_plan_matches_adds_creates_and_learns() {
         let conn = seeded();
-        let card = account(&conn, "Card (9849)", "credit");
+        let card = account(&conn, "Card (1234)", "credit");
         upsert_transactions(&conn, card, &[payee_txn("sf1", "2026-07-02", -12.5, "Zqx Diner")], &[]).unwrap();
         let csv = format!("{COPILOT_HEADER}\n\
-            \"2026-07-03\",\"Zqx Diner\",\"12.50\",\"posted\",\"Eating Out\",\"\",\"false\",\"\",\"regular\",\"Adv\",\"9849\",\"lunch\",\"\"\n\
+            \"2026-07-03\",\"Zqx Diner\",\"12.50\",\"posted\",\"Eating Out\",\"\",\"false\",\"\",\"regular\",\"Adv\",\"1234\",\"lunch\",\"\"\n\
             \"2026-01-05\",\"Haggin Oaks\",\"20\",\"posted\",\"Golf\",\"\",\"false\",\"\",\"regular\",\"\",\"\",\"\",\"\"\n\
             \"2026-01-12\",\"Haggin Oaks\",\"25\",\"posted\",\"Golf\",\"\",\"false\",\"\",\"regular\",\"\",\"\",\"\",\"\"\n");
         let plan = copilot_plan(&conn, &csv);
@@ -1869,11 +1869,11 @@ mod tests {
     #[test]
     fn copilot_wins_over_a_category_chosen_in_tally() {
         let conn = seeded();
-        let card = account(&conn, "Card (9849)", "credit");
+        let card = account(&conn, "Card (1234)", "credit");
         upsert_transactions(&conn, card, &[payee_txn("sf1", "2026-07-02", -12.5, "Zqx Diner")], &[]).unwrap();
         let id: i64 = conn.query_row("SELECT id FROM bank_transactions", [], |r| r.get(0)).unwrap();
         set_category(&conn, id, seed::category_id(&conn, "Groceries").unwrap(), false).unwrap();
-        let csv = format!("{COPILOT_HEADER}\n\"2026-07-03\",\"Zqx Diner\",\"12.50\",\"posted\",\"Eating Out\",\"\",\"false\",\"\",\"regular\",\"Adv\",\"9849\",\"\",\"\"\n");
+        let csv = format!("{COPILOT_HEADER}\n\"2026-07-03\",\"Zqx Diner\",\"12.50\",\"posted\",\"Eating Out\",\"\",\"false\",\"\",\"regular\",\"Adv\",\"1234\",\"\",\"\"\n");
         let plan = copilot_plan(&conn, &csv);
         assert_eq!(plan.recategorised, 1);
 
@@ -1887,11 +1887,11 @@ mod tests {
     #[test]
     fn a_split_matched_row_is_left_alone() {
         let conn = seeded();
-        let card = account(&conn, "Card (9849)", "credit");
+        let card = account(&conn, "Card (1234)", "credit");
         upsert_transactions(&conn, card, &[payee_txn("sf1", "2026-07-02", -12.5, "Zqx Diner")], &[]).unwrap();
         let id: i64 = conn.query_row("SELECT id FROM bank_transactions", [], |r| r.get(0)).unwrap();
         set_splits(&conn, id, &[piece(&conn, Some("Groceries"), -10.0), piece(&conn, None, -2.5)]).unwrap();
-        let csv = format!("{COPILOT_HEADER}\n\"2026-07-03\",\"Zqx Diner\",\"12.50\",\"posted\",\"Eating Out\",\"\",\"false\",\"\",\"regular\",\"Adv\",\"9849\",\"\",\"\"\n");
+        let csv = format!("{COPILOT_HEADER}\n\"2026-07-03\",\"Zqx Diner\",\"12.50\",\"posted\",\"Eating Out\",\"\",\"false\",\"\",\"regular\",\"Adv\",\"1234\",\"\",\"\"\n");
 
         apply_copilot_plan(&conn, &copilot_plan(&conn, &csv)).unwrap();
 
@@ -1914,7 +1914,7 @@ mod tests {
     fn after_the_exports_newest_day_only_categories_change() {
         let conn = seeded();
         conn.execute("INSERT INTO categories (name,kind,sort) VALUES ('Shops','spending',500)", []).unwrap();
-        let card = account(&conn, "Card (9849)", "credit");
+        let card = account(&conn, "Card (1234)", "credit");
         upsert_transactions(&conn, card, &[
             payee_txn("sf1", "2026-07-02", -12.5, "Zqx Diner"),
             // After the export: a Target run in Shopping (merged into Shops),
@@ -1937,7 +1937,7 @@ mod tests {
         conn.execute("UPDATE bank_transactions SET removed=1, reviewed=1 WHERE external_id='late-gone'", []).unwrap();
         let before: Vec<_> = ["late-target", "late-meal", "late-trip", "late-golf", "late-gone"].iter().map(|e| snapshot_of(&conn, e)).collect();
         let csv = format!("{COPILOT_HEADER}\n\
-            \"2026-07-03\",\"Zqx Diner\",\"12.50\",\"posted\",\"Eating Out\",\"\",\"false\",\"\",\"regular\",\"Adv\",\"9849\",\"\",\"\"\n\
+            \"2026-07-03\",\"Zqx Diner\",\"12.50\",\"posted\",\"Eating Out\",\"\",\"false\",\"\",\"regular\",\"Adv\",\"1234\",\"\",\"\"\n\
             \"2026-01-05\",\"Target\",\"20\",\"posted\",\"Shops\",\"\",\"false\",\"\",\"regular\",\"\",\"\",\"\",\"\"\n\
             \"2026-01-06\",\"Haggin Oaks\",\"20\",\"posted\",\"Golf\",\"\",\"false\",\"\",\"regular\",\"\",\"\",\"\",\"\"\n\
             \"2026-01-07\",\"Haggin Oaks\",\"25\",\"posted\",\"Golf\",\"\",\"false\",\"\",\"regular\",\"\",\"\",\"\",\"\"\n");
@@ -2027,7 +2027,7 @@ mod tests {
     #[test]
     fn an_import_leaves_exactly_copilots_categories() {
         let conn = seeded();
-        let card = account(&conn, "Card (9849)", "credit");
+        let card = account(&conn, "Card (1234)", "credit");
         upsert_transactions(&conn, card, &[
             payee_txn("sf1", "2026-07-02", -12.5, "Zqx Diner"),
             payee_txn("late", "2026-08-01", -50.0, "Zqx Air"),
@@ -2038,7 +2038,7 @@ mod tests {
         let fees = seed::category_id(&conn, "Fees").unwrap().unwrap();
         conn.execute("INSERT INTO category_rules (match_type,pattern,category_id,created_at) VALUES ('payee','zqx fee',?1,'x')", [fees]).unwrap();
         let csv = format!("{COPILOT_HEADER}\n\
-            \"2026-07-03\",\"Zqx Diner\",\"12.50\",\"posted\",\"Eating Out\",\"\",\"false\",\"\",\"regular\",\"Adv\",\"9849\",\"\",\"\"\n\
+            \"2026-07-03\",\"Zqx Diner\",\"12.50\",\"posted\",\"Eating Out\",\"\",\"false\",\"\",\"regular\",\"Adv\",\"1234\",\"\",\"\"\n\
             \"2026-01-05\",\"Range\",\"20\",\"posted\",\"Golf\",\"\",\"false\",\"\",\"regular\",\"\",\"\",\"\",\"\"\n\
             \"2026-01-06\",\"Range\",\"20\",\"posted\",\"Golf\",\"\",\"false\",\"\",\"regular\",\"\",\"\",\"\",\"\"\n\
             \"2026-01-07\",\"To savings\",\"-200\",\"posted\",\"\",\"\",\"false\",\"\",\"internal transfer\",\"\",\"\",\"\",\"\"\n\
@@ -2101,15 +2101,15 @@ mod tests {
     #[test]
     fn the_import_removes_every_row_copilot_doesnt_have_and_no_other() {
         let conn = seeded();
-        let card = account(&conn, "Card (9849)", "credit");
+        let card = account(&conn, "Card (1234)", "credit");
         upsert_transactions(&conn, card, &[
             payee_txn("kept", "2026-07-01", -12.5, "Zqx Diner"),
             payee_txn("paidback", "2026-07-04", 40.0, "Transfer from Apple Pay"),
             payee_txn("other", "2026-07-05", 7.0, "Zqx Refund"),
         ], &[]).unwrap();
         let csv = format!("{COPILOT_HEADER}\n\
-            \"2026-07-01\",\"Zqx Diner\",\"12.50\",\"posted\",\"Eating Out\",\"\",\"false\",\"\",\"regular\",\"Adv\",\"9849\",\"\",\"\"\n\
-            \"2026-07-20\",\"Later\",\"3\",\"posted\",\"Other\",\"\",\"false\",\"\",\"regular\",\"Adv\",\"9849\",\"\",\"\"\n");
+            \"2026-07-01\",\"Zqx Diner\",\"12.50\",\"posted\",\"Eating Out\",\"\",\"false\",\"\",\"regular\",\"Adv\",\"1234\",\"\",\"\"\n\
+            \"2026-07-20\",\"Later\",\"3\",\"posted\",\"Other\",\"\",\"false\",\"\",\"regular\",\"Adv\",\"1234\",\"\",\"\"\n");
         let plan = copilot_plan(&conn, &csv);
         assert_eq!(plan.not_in_copilot.len(), 2);
 
@@ -2124,9 +2124,9 @@ mod tests {
     #[test]
     fn copilots_name_shows_and_a_sync_never_overwrites_it() {
         let conn = seeded();
-        let card = account(&conn, "Card (9849)", "credit");
+        let card = account(&conn, "Card (1234)", "credit");
         upsert_transactions(&conn, card, &[payee_txn("sf1", "2026-07-01", -12.5, "SQ *ZQX DINER 123")], &[]).unwrap();
-        let csv = export(&[copilot_row("2026-07-01", "Zqx Diner", "12.50", "Eating Out", "regular", "9849")]);
+        let csv = export(&[copilot_row("2026-07-01", "Zqx Diner", "12.50", "Eating Out", "regular", "1234")]);
 
         apply_copilot_plan(&conn, &copilot_plan(&conn, &csv)).unwrap();
         upsert_transactions(&conn, card, &[payee_txn("sf1", "2026-07-01", -12.5, "SQ *ZQX DINER 999")], &[]).unwrap();
@@ -2143,15 +2143,15 @@ mod tests {
         // Copilot holds the purchase at $12.50 with the tip; the bank's record
         // says $10. Copilot's goes in, the bank's is removed.
         let conn = seeded();
-        let card = account(&conn, "Card (9849)", "credit");
+        let card = account(&conn, "Card (1234)", "credit");
         upsert_transactions(&conn, card, &[
             payee_txn("first", "2026-07-01", -5.0, "Zqx First"),
             payee_txn("tipless", "2026-07-05", -10.0, "Zqx Bistro"),
         ], &[]).unwrap();
         let csv = export(&[
-            copilot_row("2026-07-01", "Zqx First", "5", "Eating Out", "regular", "9849"),
-            copilot_row("2026-07-05", "Zqx Bistro", "12.50", "Eating Out", "regular", "9849"),
-            copilot_row("2026-07-20", "Later", "1", "Eating Out", "regular", "9849"),
+            copilot_row("2026-07-01", "Zqx First", "5", "Eating Out", "regular", "1234"),
+            copilot_row("2026-07-05", "Zqx Bistro", "12.50", "Eating Out", "regular", "1234"),
+            copilot_row("2026-07-20", "Later", "1", "Eating Out", "regular", "1234"),
         ]);
 
         let counts = apply_copilot_plan(&conn, &copilot_plan(&conn, &csv)).unwrap();
@@ -2237,9 +2237,9 @@ mod tests {
     #[test]
     fn a_sync_adopts_an_imported_row_instead_of_duplicating_it() {
         let conn = seeded();
-        let card = account(&conn, "Card (9849)", "credit");
+        let card = account(&conn, "Card (1234)", "credit");
         upsert_transactions(&conn, card, &[payee_txn("sf-new", "2026-07-02", -1.0, "Zqx")], &[]).unwrap();
-        let csv = format!("{COPILOT_HEADER}\n\"2026-01-05\",\"Old Diner\",\"8\",\"posted\",\"Eating Out\",\"\",\"false\",\"\",\"regular\",\"Adv\",\"9849\",\"\",\"\"\n");
+        let csv = format!("{COPILOT_HEADER}\n\"2026-01-05\",\"Old Diner\",\"8\",\"posted\",\"Eating Out\",\"\",\"false\",\"\",\"regular\",\"Adv\",\"1234\",\"\",\"\"\n");
         apply_copilot_plan(&conn, &copilot_plan(&conn, &csv)).unwrap();
 
         // "Import 2 years" later brings SimpleFIN's own copy of that purchase.

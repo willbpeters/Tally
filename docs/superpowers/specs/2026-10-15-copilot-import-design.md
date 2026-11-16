@@ -7,8 +7,8 @@
 ## Goal
 
 Let the owner retire Copilot Money. One import carries their Copilot
-categories onto the transactions Ledgerly already has, brings in the two years
-of older history Ledgerly never saw, and teaches Ledgerly their merchant habits
+categories onto the transactions Tally already has, brings in the two years
+of older history Tally never saw, and teaches Tally their merchant habits
 so future transactions follow them.
 
 ## What the export looks like
@@ -23,11 +23,11 @@ your transactions" writes a CSV with this header, every field quoted:
 
 - `date` is `YYYY-MM-DD`.
 - **`amount` is positive for money out** and negative for money in — the
-  opposite of Ledgerly. The import negates it.
+  opposite of Tally. The import negates it.
 - `status` is `posted` or `pending`; `excluded` is `true`/`false`.
 - `type` is `regular`, `income` or `internal transfer`.
 - `category` is the owner's own Copilot category; `parent category` is a
-  Copilot grouping Ledgerly does not have and is ignored. A category can carry
+  Copilot grouping Tally does not have and is ignored. A category can carry
   stray whitespace (`"Gifts "`), so names are trimmed.
 - `account` / `account mask` name the account and its last four digits. On
   this export, **1,165 rows (every one before October 2025) have both blank**:
@@ -56,14 +56,14 @@ amount so the owner can see them.
 
 ## Decisions taken with the owner
 
-1. **Ledgerly adopts the owner's Copilot categories.** Ones Ledgerly lacks are
-   created; ones that mean the same thing map onto Ledgerly's.
+1. **Tally adopts the owner's Copilot categories.** Ones Tally lacks are
+   created; ones that mean the same thing map onto Tally's.
 2. **Older history is imported**, so Spending, budgets and later trends reach
    back to 2024. It never changes an account balance or net worth.
 
 ## Categories
 
-| Copilot | Ledgerly |
+| Copilot | Tally |
 |---|---|
 | Eating Out | Dining |
 | Groceries | Groceries |
@@ -92,10 +92,10 @@ always Transfer.
 
 ## Accounts
 
-A Copilot row's account is found by its **mask**: the Ledgerly account whose
-name ends with `(mask)` — every SimpleFIN account name does ("Card (9849)",
-"Savings (5979)"). On the owner's data this maps all five named Copilot
-accounts. Rows whose mask is blank, or matches no Ledgerly account, go to one
+A Copilot row's account is found by its **mask**: the Tally account whose
+name ends with `(mask)` — every SimpleFIN account name does ("Card (1234)",
+"Savings (5678)"). On the owner's data this maps all five named Copilot
+accounts. Rows whose mask is blank, or matches no Tally account, go to one
 **"Copilot history"** account, created on first need as a manual `cash`
 account. It carries bank transactions only, so its balance and its effect on
 net worth are zero; it appears in Accounts so the history is visible and can be
@@ -105,9 +105,9 @@ hidden there.
 
 For each Copilot row (after skipping `pending` and `excluded` rows):
 
-- **Inside the span Ledgerly already holds for that account** (on or after the
+- **Inside the span Tally already holds for that account** (on or after the
   account's earliest SimpleFIN transaction), the row is **matched, never
-  added**: the Ledgerly transaction in the same account with the same amount to
+  added**: the Tally transaction in the same account with the same amount to
   the cent, posted within **3 days**, not already matched, closest date first.
   A match gets the Copilot category, its note, `category_source = 'manual'` and
   `reviewed = 1`. An unmatched row here is **counted and skipped** — inside the
@@ -134,18 +134,18 @@ After the import, for every Copilot name seen at least **twice**, where at least
 the normalised name). Future SimpleFIN transactions from that payee then follow
 the owner's Copilot habit — Haggin Oaks to Golf, not the built-in keyword's
 Entertainment. **Existing rules are never overwritten**: a rule the owner
-already made in Ledgerly wins.
+already made in Tally wins.
 
 ## Notes
 
 Schema **v7** adds `bank_transactions.note TEXT`, through
 `add_column_if_missing`, with `v7_is_complete` and an entry in
 `db::migration_pending`. Imported notes land there and show under the payee
-in the transaction list. Editing notes in Ledgerly is TODO item 11, not this.
+in the transaction list. Editing notes in Tally is TODO item 11, not this.
 
 ## The fix this depends on
 
-A **pending** SimpleFIN transaction has `posted = 0`, and Ledgerly stores it as
+A **pending** SimpleFIN transaction has `posted = 0`, and Tally stores it as
 `1970-01-01` (six such rows on the owner's data). The import's span rule reads
 "earliest transaction per account", which those rows would break, and they are
 wrong in Spending regardless. **Pending rows take their date from
@@ -190,8 +190,8 @@ it is handed.
 1. **Never a duplicate.** Inside SimpleFIN's span, Copilot only matches.
 2. **Never a balance change.** Added rows are history; synced balances still
    come from SimpleFIN, and the Copilot history account is zero.
-3. **The owner's Ledgerly choices win.** A transaction already `manual` in
-   Ledgerly keeps its category (the import fills only `auto` rows and adds new
+3. **The owner's Tally choices win.** A transaction already `manual` in
+   Tally keeps its category (the import fills only `auto` rows and adds new
    ones); an existing payee rule is never overwritten.
 4. **All or nothing**, with a backup taken first.
 5. **Migrations follow the `db.rs` rules** (idempotent, `migration_pending`).
@@ -220,7 +220,7 @@ it is handed.
 ## Addendum (2026-10-15): removing transactions, and ones deleted in Copilot
 
 The owner deletes a transaction in Copilot when they are paid back for it, and
-wants the same in Ledgerly, plus the import to carry those deletions over.
+wants the same in Tally, plus the import to carry those deletions over.
 
 **Remove, not delete.** A deleted SimpleFIN row would come straight back on the
 next sync (same `external_id`), so removing is a flag: schema **v8** adds
@@ -234,7 +234,7 @@ moved — removing is about budgeting, not about the account.
 `askToConfirm`). The Transactions card gets **Show removed (n)**, listing the
 month's removed rows with **Restore**.
 
-**In the import**, the plan gains `not_in_copilot`: Ledgerly rows (not
+**In the import**, the plan gains `not_in_copilot`: Tally rows (not
 imported, not pending, not already removed, not matched) in an account some
 Copilot row maps to, dated from that account's first Copilot row up to three
 days before its last — Copilot can lag SimpleFIN by a day or two, and a row

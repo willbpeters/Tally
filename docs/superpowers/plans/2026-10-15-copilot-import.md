@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** One import carries the owner's Copilot categories onto matching transactions, adds the history Ledgerly never saw, and learns their merchant habits, so Copilot can be retired.
+**Goal:** One import carries the owner's Copilot categories onto matching transactions, adds the history Tally never saw, and learns their merchant habits, so Copilot can be retired.
 
 **Architecture:** A pure planner, `budget/copilot.rs`, turns CSV text plus a snapshot of the database into a `Plan` (matches, additions, skips, new categories, rules). The UI previews that plan; `store::apply_copilot_plan` writes it in one transaction after a backup. Schema v7 adds a `note` column and clears 1970-dated pending rows; the SimpleFIN parser dates pending rows from `transacted_at`; a sync adopts an imported Copilot row instead of duplicating it.
 
@@ -18,7 +18,7 @@
 
 ## Deviation from the spec, decided while planning
 
-**The 1970 pending rows are removed, not re-dated.** Ledgerly never stored
+**The 1970 pending rows are removed, not re-dated.** Tally never stored
 `transacted_at`, so the six rows cannot be repaired in place. They are pending
 copies; v7 deletes pending rows dated before 2000, and the next sync re-adds
 them with the right date (the parser fix below). A pre-migration backup is
@@ -175,7 +175,7 @@ mod tests {
 
     fn snap() -> Snapshot {
         Snapshot {
-            accounts: vec![AccountRef { id: 1, name: "Card (9849)".into() }],
+            accounts: vec![AccountRef { id: 1, name: "Card (1234)".into() }],
             txns: vec![
                 ExistingTxn { id: 10, account_id: 1, posted: "2026-07-01".into(), amount: -12.5, from_copilot: false },
                 ExistingTxn { id: 11, account_id: 1, posted: "2026-07-05".into(), amount: -12.5, from_copilot: false },
@@ -192,7 +192,7 @@ mod tests {
 
     #[test]
     fn quoted_fields_and_doubled_quotes_parse() {
-        let rows = parse_csv(&csv(&[&row("2026-07-02", "Joe \"\"The\"\" Diner, Inc", "12.50", "Eating Out", "regular", "9849")])).unwrap();
+        let rows = parse_csv(&csv(&[&row("2026-07-02", "Joe \"\"The\"\" Diner, Inc", "12.50", "Eating Out", "regular", "1234")])).unwrap();
         assert_eq!(rows[0].name, "Joe \"The\" Diner, Inc");
     }
 
@@ -204,7 +204,7 @@ mod tests {
     }
 
     #[test]
-    fn categories_map_onto_ledgerlys_or_are_created() {
+    fn categories_map_onto_tallys_or_are_created() {
         let r = |cat: &str, kind: &str| CopilotRow { category: cat.into(), kind: kind.into(), ..CopilotRow::default() };
         assert_eq!(category_for(&r("Eating Out", "regular")).as_deref(), Some("Dining"));
         assert_eq!(category_for(&r("Shops", "regular")).as_deref(), Some("Shopping"));
@@ -217,8 +217,8 @@ mod tests {
     #[test]
     fn a_row_inside_the_span_matches_closest_date_first_and_only_once() {
         let rows = parse_csv(&csv(&[
-            &row("2026-07-04", "Diner", "12.50", "Eating Out", "regular", "9849"),
-            &row("2026-07-02", "Diner", "12.50", "Eating Out", "regular", "9849"),
+            &row("2026-07-04", "Diner", "12.50", "Eating Out", "regular", "1234"),
+            &row("2026-07-02", "Diner", "12.50", "Eating Out", "regular", "1234"),
         ])).unwrap();
         let p = plan(&rows, &snap());
         let ids: Vec<i64> = p.matches.iter().map(|m| m.txn_id).collect();
@@ -229,7 +229,7 @@ mod tests {
 
     #[test]
     fn an_unmatched_row_inside_the_span_is_skipped_not_added() {
-        let rows = parse_csv(&csv(&[&row("2026-07-10", "Mystery", "9.99", "Other", "regular", "9849")])).unwrap();
+        let rows = parse_csv(&csv(&[&row("2026-07-10", "Mystery", "9.99", "Other", "regular", "1234")])).unwrap();
         let p = plan(&rows, &snap());
         assert!(p.additions.is_empty());
         assert_eq!(p.skipped.len(), 1);
@@ -237,7 +237,7 @@ mod tests {
 
     #[test]
     fn a_row_before_the_span_is_added_to_its_account() {
-        let rows = parse_csv(&csv(&[&row("2026-01-10", "Old Diner", "8.00", "Eating Out", "regular", "9849")])).unwrap();
+        let rows = parse_csv(&csv(&[&row("2026-01-10", "Old Diner", "8.00", "Eating Out", "regular", "1234")])).unwrap();
         let p = plan(&rows, &snap());
         assert_eq!(p.additions.len(), 1);
         assert_eq!(p.additions[0].account, Target::Account(1));
@@ -333,7 +333,7 @@ pub const HISTORY_ACCOUNT: &str = "Copilot history";
 pub struct CopilotRow {
     pub date: String,
     pub name: String,
-    /// Ledgerly's sign: negative is money out (Copilot's is the opposite).
+    /// Tally's sign: negative is money out (Copilot's is the opposite).
     pub amount: f64,
     pub pending: bool,
     pub category: String,
@@ -382,7 +382,7 @@ pub struct Plan {
     pub pending_or_excluded: usize,
     pub new_categories: Vec<NewCategory>,
     pub rules: Vec<LearnedRule>,
-    /// Copilot account label → the Ledgerly account it maps to.
+    /// Copilot account label → the Tally account it maps to.
     pub accounts: Vec<(String, String)>,
 }
 
@@ -431,14 +431,14 @@ pub fn parse_csv(text: &str) -> Result<Vec<CopilotRow>, String> {
         .collect())
 }
 
-/// Copilot names that mean the same as one of Ledgerly's.
+/// Copilot names that mean the same as one of Tally's.
 const SAME_AS: &[(&str, &str)] = &[
     ("eating out", "Dining"), ("groceries", "Groceries"), ("shops", "Shopping"),
     ("subscriptions", "Subscriptions"), ("entertainment", "Entertainment"),
     ("travel", "Travel"), ("other", "Other"),
 ];
 
-/// The Ledgerly category name a row belongs in. An internal transfer is always
+/// The Tally category name a row belongs in. An internal transfer is always
 /// Transfer, whatever its category says.
 pub fn category_for(r: &CopilotRow) -> Option<String> {
     if r.kind == "internal transfer" {
@@ -525,7 +525,7 @@ pub fn plan(rows: &[CopilotRow], snap: &Snapshot) -> Plan {
         });
     }
 
-    // Categories the owner used that Ledgerly does not have yet.
+    // Categories the owner used that Tally does not have yet.
     let have: HashSet<String> = snap.category_names.iter().map(|c| c.to_lowercase()).collect();
     let mut wanted: Vec<String> = p.matches.iter().map(|m| m.category.clone())
         .chain(p.additions.iter().map(|a| a.category.clone())).flatten().collect();
@@ -584,10 +584,10 @@ Run: `cargo test budget::copilot` — Expected: **13 passed**. Commit: `feat(bud
     #[test]
     fn applying_a_plan_matches_adds_creates_and_learns() {
         let conn = db::open_in_memory().unwrap();
-        let card = account(&conn, "Card (9849)", "credit");
+        let card = account(&conn, "Card (1234)", "credit");
         upsert_transactions(&conn, card, &[payee_txn("sf1", "2026-07-02", -12.5, "Zqx Diner")], &[]).unwrap();
         let csv = format!("{COPILOT_HEADER}\n\
-            \"2026-07-03\",\"Zqx Diner\",\"12.50\",\"posted\",\"Eating Out\",\"\",\"false\",\"\",\"regular\",\"Adv\",\"9849\",\"lunch\",\"\"\n\
+            \"2026-07-03\",\"Zqx Diner\",\"12.50\",\"posted\",\"Eating Out\",\"\",\"false\",\"\",\"regular\",\"Adv\",\"1234\",\"lunch\",\"\"\n\
             \"2026-01-05\",\"Haggin Oaks\",\"20\",\"posted\",\"Golf\",\"\",\"false\",\"\",\"regular\",\"\",\"\",\"\",\"\"\n\
             \"2026-01-12\",\"Haggin Oaks\",\"25\",\"posted\",\"Golf\",\"\",\"false\",\"\",\"regular\",\"\",\"\",\"\",\"\"\n");
         let plan = copilot_plan(&conn, &csv);
@@ -612,13 +612,13 @@ Run: `cargo test budget::copilot` — Expected: **13 passed**. Commit: `feat(bud
     }
 
     #[test]
-    fn an_import_never_overrides_a_category_chosen_in_ledgerly() {
+    fn an_import_never_overrides_a_category_chosen_in_tally() {
         let conn = db::open_in_memory().unwrap();
-        let card = account(&conn, "Card (9849)", "credit");
+        let card = account(&conn, "Card (1234)", "credit");
         upsert_transactions(&conn, card, &[payee_txn("sf1", "2026-07-02", -12.5, "Zqx Diner")], &[]).unwrap();
         let id: i64 = conn.query_row("SELECT id FROM bank_transactions", [], |r| r.get(0)).unwrap();
         set_category(&conn, id, seed::category_id(&conn, "Groceries").unwrap(), false).unwrap();
-        let csv = format!("{COPILOT_HEADER}\n\"2026-07-03\",\"Zqx Diner\",\"12.50\",\"posted\",\"Eating Out\",\"\",\"false\",\"\",\"regular\",\"Adv\",\"9849\",\"\",\"\"\n");
+        let csv = format!("{COPILOT_HEADER}\n\"2026-07-03\",\"Zqx Diner\",\"12.50\",\"posted\",\"Eating Out\",\"\",\"false\",\"\",\"regular\",\"Adv\",\"1234\",\"\",\"\"\n");
 
         apply_copilot_plan(&conn, &copilot_plan(&conn, &csv)).unwrap();
 
@@ -628,9 +628,9 @@ Run: `cargo test budget::copilot` — Expected: **13 passed**. Commit: `feat(bud
     #[test]
     fn a_sync_adopts_an_imported_row_instead_of_duplicating_it() {
         let conn = db::open_in_memory().unwrap();
-        let card = account(&conn, "Card (9849)", "credit");
+        let card = account(&conn, "Card (1234)", "credit");
         upsert_transactions(&conn, card, &[payee_txn("sf-new", "2026-07-02", -1.0, "Zqx")], &[]).unwrap();
-        let csv = format!("{COPILOT_HEADER}\n\"2026-01-05\",\"Old Diner\",\"8\",\"posted\",\"Eating Out\",\"\",\"false\",\"\",\"regular\",\"Adv\",\"9849\",\"\",\"\"\n");
+        let csv = format!("{COPILOT_HEADER}\n\"2026-01-05\",\"Old Diner\",\"8\",\"posted\",\"Eating Out\",\"\",\"false\",\"\",\"regular\",\"Adv\",\"1234\",\"\",\"\"\n");
         apply_copilot_plan(&conn, &copilot_plan(&conn, &csv)).unwrap();
 
         // "Import 2 years" later brings SimpleFIN's own copy of that purchase.
@@ -724,7 +724,7 @@ pub fn apply_copilot_plan(conn: &Connection, plan: &copilot::Plan) -> rusqlite::
 
     for m in &plan.matches {
         let category = match &m.category { Some(n) => category_named(&tx, n)?, None => None };
-        // A category the owner already chose in Ledgerly wins.
+        // A category the owner already chose in Tally wins.
         tx.execute(
             "UPDATE bank_transactions SET category_id=?1, category_source='manual', reviewed=1
              WHERE id=?2 AND category_source='auto'",
@@ -871,7 +871,7 @@ const plan: CopilotPlan = {
   pending_or_excluded: 2,
   new_categories: [{ name: "Golf", kind: "spending" }],
   rules: [{ pattern: "haggin oaks", category: "Golf" }],
-  accounts: [["Adv SafeBalance Banking", "Card (9849)"], ["(no account)", "Copilot history"]],
+  accounts: [["Adv SafeBalance Banking", "Card (1234)"], ["(no account)", "Copilot history"]],
 };
 const base = { plan: null, result: null, busy: false, onChoose: vi.fn(), onImport: vi.fn() };
 
@@ -888,7 +888,7 @@ describe("CopilotImportPanel", () => {
     expect(screen.getByText(/1 added as history/)).toBeInTheDocument();
     expect(screen.getByText(/Golf/)).toBeInTheDocument();
     expect(screen.getByText(/Mystery/)).toBeInTheDocument();
-    expect(screen.getByText(/Card \(9849\)/)).toBeInTheDocument();
+    expect(screen.getByText(/Card \(1234\)/)).toBeInTheDocument();
   });
 
   it("imports from the preview", () => {
@@ -905,7 +905,7 @@ describe("CopilotImportPanel", () => {
 });
 ```
 
-- [ ] **Panel** (`CopilotImportPanel.tsx`): a `Card` titled "Import from Copilot" that shows, before a plan, one paragraph explaining the export path (Copilot → Settings → Account → Export your transactions) and a **Choose Copilot export…** button; with a plan, the lines `{matches} matched`, `{additions} added as history`, `{pending_or_excluded} pending or excluded, skipped`, the new categories joined by ", ", `{rules} payee rules learned`, the account mapping as `Copilot name → Ledgerly name` lines, the skipped rows (date, name, amount) in a `<details>`, and an **Import** button (`loading={busy}`); with a result, `"{matched} matched, {added} added, {categories} categories created, {rules} rules learned. A backup was taken first."`.
+- [ ] **Panel** (`CopilotImportPanel.tsx`): a `Card` titled "Import from Copilot" that shows, before a plan, one paragraph explaining the export path (Copilot → Settings → Account → Export your transactions) and a **Choose Copilot export…** button; with a plan, the lines `{matches} matched`, `{additions} added as history`, `{pending_or_excluded} pending or excluded, skipped`, the new categories joined by ", ", `{rules} payee rules learned`, the account mapping as `Copilot name → Tally name` lines, the skipped rows (date, name, amount) in a `<details>`, and an **Import** button (`loading={busy}`); with a result, `"{matched} matched, {added} added, {categories} categories created, {rules} rules learned. A backup was taken first."`.
 
 - [ ] **Card** (`CopilotImportCard.tsx`): `open({ title: "Choose your Copilot export", filters: [{ name: "Copilot export", extensions: ["csv"] }] })`, then `preview.mutate(path)`; Import calls `importer.mutate(path)`; errors go to a toast.
 
@@ -919,7 +919,7 @@ describe("CopilotImportPanel", () => {
 
 ### Task 7: Import the owner's export, then record
 
-- [ ] Launch with **Ledgerly (test)**; the v7 migration runs (pre-migration backup).
+- [ ] Launch with **Tally (test)**; the v7 migration runs (pre-migration backup).
 - [ ] Settings → **Import from Copilot** → choose `Downloads\transactions (2).csv` → check the preview against the dry run (~250 matched, ~1,795 added, ~29 skipped) → **Import**.
 - [ ] Check Spending: old months (2024–2025) show spending; Golf, Car, Date night exist as categories; To review is smaller.
 - [ ] Docs: HANDOFF (feature + gotcha "Copilot rows have `external_id` starting `copilot:`; a sync adopts them"), TODO 9b ticked. Merge, push, delete the branch.
@@ -934,7 +934,7 @@ describe("CopilotImportPanel", () => {
 
 ### Task 9: the plan finds rows deleted in Copilot — `budget/copilot.rs`, `store.rs`, `commands/copilot.rs`
 - `ExistingTxn` gains `label`, `pending`, `removed`; `Plan` gains `not_in_copilot: Vec<NotInCopilot { txn_id, date, name, amount, account }>`.
-- Tests first: an unmatched Ledgerly row inside its account's Copilot dates is listed; one in the last three days of that range is not; pending, removed and imported rows are not; an account no Copilot row maps to is not looked at.
+- Tests first: an unmatched Tally row inside its account's Copilot dates is listed; one in the last three days of that range is not; pending, removed and imported rows are not; an account no Copilot row maps to is not looked at.
 - `apply_copilot_plan(conn, plan, remove: &[i64])` sets `removed=1` for ids that are in `plan.not_in_copilot`, inside the same transaction; test that an id not offered is ignored. `copilot_import(path, remove_ids)`.
 
 ### Task 10: UI — `types.ts`, `api.ts`, `queries.ts`, `spending.ts`, `TransactionList.tsx`, `Spending.tsx`, `CopilotImportPanel.tsx`, `CopilotImportCard.tsx`

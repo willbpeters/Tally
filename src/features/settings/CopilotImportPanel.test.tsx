@@ -10,13 +10,13 @@ const plan: CopilotPlan = {
     { external_id: "copilot:b", posted: "2026-07-10", amount: -9.99, name: "Mystery", category: "Shops" },
   ],
   not_in_copilot: [
-    { txn_id: 41, date: "2026-07-04", name: "Transfer from Apple Pay", amount: 40, account: "Card (9849)", earlier_export: false },
-    { txn_id: 42, date: "2026-07-05", name: "Target", amount: -12, account: "Card (9849)", earlier_export: true },
+    { txn_id: 41, date: "2026-07-04", name: "Transfer from Apple Pay", amount: 40, account: "Card (1234)", earlier_export: false },
+    { txn_id: 42, date: "2026-07-05", name: "Target", amount: -12, account: "Card (1234)", earlier_export: true },
   ],
   pending: 2,
   new_categories: [{ name: "Golf", kind: "spending" }],
   rules: [{ pattern: "haggin oaks", category: "Golf" }],
-  accounts: [["Adv SafeBalance Banking", "Card (9849)"], ["(no account)", "Copilot history"]],
+  accounts: [["Adv SafeBalance Banking", "Card (1234)"], ["(no account)", "Copilot history"]],
   cutoff: "2026-10-24",
   merges: [["Dining", "Eating Out"], ["Shopping", "Shops"]],
   deletions: ["Travel", "Poker"],
@@ -42,7 +42,7 @@ describe("CopilotImportPanel", () => {
     expect(screen.getByText("2 added")).toBeInTheDocument();
     expect(screen.getByText("2 removed")).toBeInTheDocument();
     expect(screen.getByText("2 transactions pending in Copilot, left for your bank sync")).toBeInTheDocument();
-    expect(screen.getByText("Adv SafeBalance Banking → Card (9849)")).toBeInTheDocument();
+    expect(screen.getByText("Adv SafeBalance Banking → Card (1234)")).toBeInTheDocument();
   });
 
   it("lists what it removes, without asking, and labels a row from an earlier export", () => {

@@ -21,7 +21,7 @@ Every number here is a **descriptive statistic about data you already own**.
 The module must never tell the owner what to buy, sell or hold, and must not
 imply a forecast. Phrasing is "your portfolio has historically moved 1.2× the
 market", never "you should reduce your tech exposure". This keeps the feature
-useful and keeps Ledgerly out of the business of giving financial advice.
+useful and keeps Tally out of the business of giving financial advice.
 
 Every metric is also **backward-looking and noisy**. The UI must say so, once,
 plainly — not bury it.

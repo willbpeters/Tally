@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Give Ledgerly a modern light/dark UI built from small shared components, and add SimpleFIN sync (balances + holdings) with the access URL kept in Windows Credential Manager.
+**Goal:** Give Tally a modern light/dark UI built from small shared components, and add SimpleFIN sync (balances + holdings) with the access URL kept in Windows Credential Manager.
 
 **Architecture:** Two workstreams. **B-Rust** (Tasks 1–6) adds a `simplefin` module, a `secrets` module, schema v2, and Tauri commands — pure parsing and sync logic are unit-tested against fixtures and an in-memory SQLite. **A-UI** (Tasks 7–14) adds theme tokens, a `useTheme` provider, shared components in `src/ui/`, and restyles every screen without changing behaviour. **Integration** (Tasks 15–18) moves portfolio derivation into a pure `derivePortfolio()` that merges synced holdings/balances, wires the SimpleFIN commands into Settings and the sidebar, and updates docs.
 
@@ -557,7 +557,7 @@ pub fn epoch_to_date(v: &Value) -> String {
 /// v2 (`errlist`, `connections`).
 pub fn parse_accounts_json(body: &str) -> Result<SfAccountSet, String> {
     let root: Value = serde_json::from_str(body)
-        .map_err(|_| "SimpleFIN sent a response Ledgerly couldn't read. Try again in a minute.".to_string())?;
+        .map_err(|_| "SimpleFIN sent a response Tally couldn't read. Try again in a minute.".to_string())?;
 
     let mut errors: Vec<String> = Vec::new();
     if let Some(arr) = root.get("errors").and_then(Value::as_array) {
@@ -697,7 +697,7 @@ const BAD_STORED: &str =
 
 fn http() -> Result<reqwest::blocking::Client, String> {
     reqwest::blocking::Client::builder()
-        .user_agent("Ledgerly/0.1 (Windows; +https://github.com/willbpeters/Ledgerly)")
+        .user_agent("Tally/0.1 (Windows; +https://github.com/willbpeters/Tally)")
         .timeout(Duration::from_secs(45))
         .build()
         .map_err(|e| e.to_string())
@@ -756,7 +756,7 @@ pub fn fetch_accounts(access_url: &str) -> Result<SfAccountSet, String> {
             let body = resp.text().map_err(|_| NETWORK_ERR.to_string())?;
             parse::parse_accounts_json(&body)
         }
-        402 => Err("Your SimpleFIN subscription needs renewing before Ledgerly can sync.".into()),
+        402 => Err("Your SimpleFIN subscription needs renewing before Tally can sync.".into()),
         403 => Err("SimpleFIN rejected the saved connection. Disconnect, then connect again with a new setup token.".into()),
         s => Err(format!("SimpleFIN returned an unexpected status ({s}). Try again later.")),
     }
@@ -1971,7 +1971,7 @@ const cls = ({ isActive }: { isActive: boolean }) => "navlink" + (isActive ? " a
 export function Sidebar({ footer }: { footer?: React.ReactNode }) {
   return (
     <nav className="sidebar">
-      <div className="brand"><span className="brand-mark">◆</span>Ledgerly</div>
+      <div className="brand"><span className="brand-mark">◆</span>Tally</div>
       {links.map((l) => (
         <NavLink key={l.to} to={l.to} end={l.end} className={cls}>
           <l.icon />{l.label}
@@ -2548,7 +2548,7 @@ export function Settings() {
 
       <Card title="About">
         <div className="grid" style={{ gap: 4, fontSize: 13 }}>
-          <div><span className="muted">Version</span> · Ledgerly 0.1.0</div>
+          <div><span className="muted">Version</span> · Tally 0.1.0</div>
           <div><span className="muted">Data</span> · stored locally in <code>%APPDATA%\com.ledgerly.app\finance.sqlite</code></div>
           <div><span className="muted">Coming later</span> · encrypted database + app lock, budgeting</div>
         </div>
@@ -3055,7 +3055,7 @@ export function SimplefinCard() {
     sync.mutate(undefined, { onSuccess: setReport, onError: (e) => setError(String(e)) });
   }
   function doDisconnect() {
-    const removeAccounts = confirm("Also remove the accounts SimpleFIN created in Ledgerly?\n\nOK = remove them and their holdings.\nCancel = keep them (they just stop updating).");
+    const removeAccounts = confirm("Also remove the accounts SimpleFIN created in Tally?\n\nOK = remove them and their holdings.\nCancel = keep them (they just stop updating).");
     setError(""); setReport(null);
     disconnect.mutate(removeAccounts, { onError: (e) => setError(String(e)) });
   }
@@ -3085,7 +3085,7 @@ export function SimplefinCard() {
       <div className="grid" style={{ gap: 14 }}>
         <ol className="steps">
           <li>Sign up at <a href="https://bridge.simplefin.org" target="_blank" rel="noreferrer">bridge.simplefin.org</a> (about $1.50/month).</li>
-          <li>Connect each bank or brokerage you want in Ledgerly.</li>
+          <li>Connect each bank or brokerage you want in Tally.</li>
           <li>Click <strong>New Setup Token</strong>, copy it, and paste it below. Tokens work once, so make a new one if this fails.</li>
         </ol>
         <label>
@@ -3148,7 +3148,7 @@ If anything fails, fix it in the task that owns that file and re-run the relevan
 
 - In "What's built", add bullets: **Theme** (light/dark/system in the sidebar and Settings, shared components in `src/ui/`), **SimpleFIN sync** (Settings card, sidebar Sync, balances + holdings, credential in Windows Credential Manager, demo token for testing).
 - In "Architecture", add: `src/domain/portfolio.ts` `derivePortfolio()` is now the single derivation point (the hook and the snapshot recorder both call it); `src-tauri/src/simplefin/` and `secrets.rs`.
-- In "Gotchas", add: schema is at `user_version` 2; the demo SimpleFIN feed has no holdings so holdings are covered by unit fixtures; the access URL lives in Credential Manager under service "Ledgerly" — deleting the database does **not** disconnect SimpleFIN.
+- In "Gotchas", add: schema is at `user_version` 2; the demo SimpleFIN feed has no holdings so holdings are covered by unit fixtures; the access URL lives in Credential Manager under service "Tally" — deleting the database does **not** disconnect SimpleFIN.
 - In "Remaining work", remove item 2 (SimpleFIN) and add "SimpleFIN scheduled auto-sync" and "SimpleFIN transaction import (for budgeting)".
 - Update the test counts line.
 

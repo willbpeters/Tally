@@ -43,7 +43,7 @@ mod tests {
     #[test]
     #[ignore = "touches the OS credential store"]
     fn credential_store_round_trip() {
-        const KEY: &str = "ledgerly_test_round_trip";
+        const KEY: &str = "tally_test_round_trip";
         // Start clean even if a previous run died halfway.
         delete(KEY).unwrap();
         assert_eq!(get(KEY).unwrap(), None, "should start with nothing stored");

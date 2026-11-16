@@ -60,11 +60,11 @@ Triggers record only when `sync_meta.enabled = '1'` and `sync_meta.applying <> '
 
 ### Pairing
 
-1. **PC, Settings → Sync between computers → "Start with this computer"**, then pick e.g. `G:\My Drive\Ledgerly Sync`. This gives the PC a device id, turns recording on and writes `seed.sqlite` (a `VACUUM INTO` copy) into the folder.
+1. **PC, Settings → Sync between computers → "Start with this computer"**, then pick e.g. `G:\My Drive\Tally Sync`. This gives the PC a device id, turns recording on and writes `seed.sqlite` (a `VACUUM INTO` copy) into the folder.
 2. **Laptop, same card → "Join"**, then pick the same folder. The laptop backs up its own data, stages `seed.sqlite` as a restore and restarts. On the restart, `meta::adopt` sees that the database's device id is not this computer's, empties the inherited outbox and takes the laptop's own id. From then on the laptop applies every PC change file the seed did not already contain. The seed's `sync_files_applied` lists the PC's own files, so nothing is applied twice.
 3. The laptop keeps its own SimpleFIN connection. Its accounts already match by `sf:` key.
 
-Joining **replaces the laptop's Ledgerly data with the PC's**. The confirmation says so, and the backup taken first makes it undoable.
+Joining **replaces the laptop's Tally data with the PC's**. The confirmation says so, and the backup taken first makes it undoable.
 
 ### When a round runs
 
@@ -72,7 +72,7 @@ At launch, every 30 seconds while the window is visible, on hiding the window, a
 
 ### Version skew
 
-Each file records the writer's schema version (`db::TARGET_VERSION`). A file from a newer Ledgerly is left unapplied and counted. The card then says "Update Ledgerly on this computer (git pull)", and the file applies after updating.
+Each file records the writer's schema version (`db::TARGET_VERSION`). A file from a newer Tally is left unapplied and counted. The card then says "Update Tally on this computer (git pull)", and the file applies after updating.
 
 ### Folder layout
 
@@ -133,7 +133,7 @@ Each file records the writer's schema version (`db::TARGET_VERSION`). A file fro
 `src-tauri/src/devicesync/mod.rs`:
 
 ```rust
-//! Keeping two computers' Ledgerly in step through a shared folder (Google
+//! Keeping two computers' Tally in step through a shared folder (Google
 //! Drive). Each computer keeps its own database and syncs SimpleFIN itself;
 //! only the owner's edits travel, as immutable change files.
 //! Design: docs/superpowers/plans/2026-10-16-device-sync.md
@@ -836,7 +836,7 @@ mod tests {
     #[test]
     fn settings_survive_a_save_and_load() {
         let dir = tempfile::tempdir().unwrap();
-        let s = DeviceSyncSettings { folder: Some(r"G:\My Drive\Ledgerly Sync".into()), device_id: Some("ab12".into()) };
+        let s = DeviceSyncSettings { folder: Some(r"G:\My Drive\Tally Sync".into()), device_id: Some("ab12".into()) };
         save(&path(dir.path()), &s).unwrap();
         assert_eq!(load(&path(dir.path())), s);
     }
@@ -1953,7 +1953,7 @@ pub struct PullReport {
     pub waiting: usize,
     /// Changes that would not apply (a constraint failed).
     pub skipped: usize,
-    /// Files from a newer Ledgerly, left for after an update.
+    /// Files from a newer Tally, left for after an update.
     pub newer_files: usize,
 }
 
@@ -2047,7 +2047,7 @@ mod tests {
     }
 
     #[test]
-    fn a_file_from_a_newer_ledgerly_is_left_for_later() {
+    fn a_file_from_a_newer_tally_is_left_for_later() {
         let conn = laptop();
         let report = apply_all(&conn, &[file("pc/1-1.json", 99, vec![note("sf:ACT-1|TRN-1", "x", 10)])], 9, 100).unwrap();
         assert_eq!((report.applied, report.newer_files), (0, 1));
@@ -2349,7 +2349,7 @@ Expected: FAIL, panics at "not implemented".
 pub fn start_first(conn: &Connection, app_dir: &Path, folder: &Path) -> Result<DeviceSyncSettings, String> {
     let seed = files::seed_path(folder);
     if seed.exists() {
-        return Err("That folder already has Ledgerly data from another computer. Choose Join on this computer instead.".into());
+        return Err("That folder already has Tally data from another computer. Choose Join on this computer instead.".into());
     }
     let id = meta::new_device_id(conn).map_err(|e| e.to_string())?;
     meta::enable(conn, &id).map_err(|e| e.to_string())?;
@@ -2381,7 +2381,7 @@ fn write_seed(conn: &Connection, seed: &Path) -> Result<(), String> {
 pub fn join(conn: &Connection, paths: &Paths, folder: &Path, at: NaiveDateTime) -> Result<Attempt, String> {
     let seed = files::seed_path(folder);
     if !seed.exists() {
-        return Err("There's no Ledgerly data in that folder yet. Turn on sync on your other computer first, choosing this same folder.".into());
+        return Err("There's no Tally data in that folder yet. Turn on sync on your other computer first, choosing this same folder.".into());
     }
     let id = meta::new_device_id(conn).map_err(|e| e.to_string())?;
     let safety = restore::stage(conn, paths, &seed, at)?;
@@ -2558,7 +2558,7 @@ mod tests {
 Update `src-tauri/src/devicesync/mod.rs` to its final form:
 
 ```rust
-//! Keeping two computers' Ledgerly in step through a shared folder (Google
+//! Keeping two computers' Tally in step through a shared folder (Google
 //! Drive). Each computer keeps its own database and syncs SimpleFIN itself;
 //! only the owner's edits travel, as immutable change files.
 //! Design: docs/superpowers/plans/2026-10-16-device-sync.md
@@ -2957,7 +2957,7 @@ const off: DeviceSyncStatus = {
 const on: DeviceSyncStatus = {
   ...off,
   enabled: true,
-  folder: "G:\\My Drive\\Ledgerly Sync",
+  folder: "G:\\My Drive\\Tally Sync",
   others: [{ id: "pc", name: "WILL-PC", last_sync: "2026-10-16T09:30:12" }],
   last: { at: "2026-10-16T09:31:00", pushed: 2, applied: 3, waiting: 0, skipped: 0, newer_files: 0 },
 };
@@ -2983,7 +2983,7 @@ describe("DeviceSyncPanel", () => {
 
   it("names the folder and the other computer with when it last synced", () => {
     render(<DeviceSyncPanel {...props({ status: on })} />);
-    expect(screen.getByText("G:\\My Drive\\Ledgerly Sync")).toBeInTheDocument();
+    expect(screen.getByText("G:\\My Drive\\Tally Sync")).toBeInTheDocument();
     expect(screen.getByText(/WILL-PC — last synced Today, 09:30/)).toBeInTheDocument();
   });
 
@@ -2997,10 +2997,10 @@ describe("DeviceSyncPanel", () => {
     expect(screen.getByText(/2 edits from your other computer are waiting/)).toBeInTheDocument();
   });
 
-  it("asks for an update when the other computer runs a newer Ledgerly", () => {
+  it("asks for an update when the other computer runs a newer Tally", () => {
     const status = { ...on, last: { ...on.last!, newer_files: 1 } };
     render(<DeviceSyncPanel {...props({ status })} />);
-    expect(screen.getByRole("alert")).toHaveTextContent(/newer version of Ledgerly/);
+    expect(screen.getByRole("alert")).toHaveTextContent(/newer version of Tally/);
   });
 
   it("shows the last error", () => {
@@ -3060,7 +3060,7 @@ export function DeviceSyncPanel(p: DeviceSyncPanelProps) {
       <Card title="Sync between computers" subtitle="Keep your budgets, categories and edits the same on your PC and laptop.">
         <p className="muted">
           Both computers need the same shared folder, such as one in Google Drive. Start on the computer
-          whose data you want to keep, then Join on the other. Joining replaces that computer's Ledgerly
+          whose data you want to keep, then Join on the other. Joining replaces that computer's Tally
           data with a copy (backed up first).
         </p>
         <div className="row center" style={{ gap: 8, marginTop: 12 }}>
@@ -3077,7 +3077,7 @@ export function DeviceSyncPanel(p: DeviceSyncPanelProps) {
       {status.last_error && <p className="neg" role="alert">Last sync failed: {status.last_error}</p>}
       {newer > 0 && (
         <p className="neg" role="alert">
-          Your other computer runs a newer version of Ledgerly. Update this one (git pull) to take its latest edits.
+          Your other computer runs a newer version of Tally. Update this one (git pull) to take its latest edits.
         </p>
       )}
 
@@ -3109,7 +3109,7 @@ export function DeviceSyncPanel(p: DeviceSyncPanelProps) {
         <Button variant="ghost" size="sm" onClick={p.onStop}>Stop syncing</Button>
       </div>
       <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
-        Syncs every 30 seconds while Ledgerly is open. Until encryption arrives, the shared folder holds your
+        Syncs every 30 seconds while Tally is open. Until encryption arrives, the shared folder holds your
         edits unencrypted.
       </p>
     </Card>
@@ -3165,7 +3165,7 @@ export function DeviceSyncCard() {
         const folder = await chooseFolder("Choose the folder your other computer is syncing to");
         if (typeof folder !== "string") return;
         const ok = await askToConfirm(
-          "Replace this computer's Ledgerly data with the copy from your other computer?\n\nThis computer's data is backed up first, so this can be undone from Backups. Ledgerly restarts to finish.",
+          "Replace this computer's Tally data with the copy from your other computer?\n\nThis computer's data is backed up first, so this can be undone from Backups. Tally restarts to finish.",
           { okLabel: "Join", cancelLabel: "Cancel" },
         );
         if (ok) join.mutate(folder, { onError: failed("Couldn't join") });
@@ -3420,9 +3420,9 @@ git push
 
 - [ ] **Step 4: Pair the real computers (manual)**
 
-1. **PC:** `git pull`. Open Ledgerly with the "Ledgerly (test)" shortcut. Go to Settings → Sync between computers → **Start with this computer…** and choose (or create) `G:\My Drive\Ledgerly Sync`. Expected: a "Sync is on" toast, and `seed.sqlite` appears in the folder.
+1. **PC:** `git pull`. Open Tally with the "Tally (test)" shortcut. Go to Settings → Sync between computers → **Start with this computer…** and choose (or create) `G:\My Drive\Tally Sync`. Expected: a "Sync is on" toast, and `seed.sqlite` appears in the folder.
 2. Wait for Google Drive to finish uploading `seed.sqlite` (Drive icon in the system tray).
-3. **Laptop:** `git pull`, then `npm install`. Open Ledgerly with its shortcut. Choose **Join…**, pick the same folder and confirm. Expected: the app restarts showing the PC's categories, budgets and accounts, and the card lists the PC.
+3. **Laptop:** `git pull`, then `npm install`. Open Tally with its shortcut. Choose **Join…**, pick the same folder and confirm. Expected: the app restarts showing the PC's categories, budgets and accounts, and the card lists the PC.
 4. **PC:** change a transaction's category in Spending. Within about a minute (30 s rounds plus Drive upload time), the laptop shows it.
 5. **Laptop:** set a budget limit. The PC shows it within about a minute.
 6. **Both:** run a SimpleFIN sync. Expected: no duplicate transactions, and manual categories are kept.

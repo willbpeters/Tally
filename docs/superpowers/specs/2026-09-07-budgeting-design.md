@@ -1,4 +1,4 @@
-# Ledgerly — Budgeting & Spending (design)
+# Tally — Budgeting & Spending (design)
 
 **Date:** 2026-09-07
 **Status:** approved by owner, ready for planning

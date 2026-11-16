@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** A Release button on GitHub builds a signed Windows installer, and the installed Ledgerly offers to update itself on launch.
+**Goal:** A Release button on GitHub builds a signed Windows installer, and the installed Tally offers to update itself on launch.
 
 **Architecture:** A hand-started GitHub Actions workflow bumps the version (`scripts/set-version.mjs`), builds with `tauri-action` into a draft release, then commits, tags and publishes it. The app uses Tauri's updater plugin against `releases/latest/download/latest.json`; `UpdateBanner` in `AppShell` checks once on launch and installs on request.
 
@@ -59,7 +59,7 @@ describe("set-version", () => {
 - [ ] **Step 3: Implement** — `scripts/set-version.mjs`:
 
 ```js
-// Writes one version into every file that carries Ledgerly's version.
+// Writes one version into every file that carries Tally's version.
 // Usage: node scripts/set-version.mjs 0.2.0   (the Release workflow runs this)
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -107,7 +107,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
     const path = root + file;
     writeFileSync(path, bump(readFileSync(path, "utf8"), version));
   }
-  console.log(`Ledgerly is now version ${version}.`);
+  console.log(`Tally is now version ${version}.`);
 }
 ```
 
@@ -132,7 +132,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   "plugins": {
     "updater": {
       "pubkey": "<filled in Task 5>",
-      "endpoints": ["https://github.com/willbpeters/Ledgerly/releases/latest/download/latest.json"],
+      "endpoints": ["https://github.com/willbpeters/Tally/releases/latest/download/latest.json"],
       "windows": { "installMode": "passive" }
     }
   }
@@ -352,7 +352,7 @@ export function UpdateBanner({ updater = realUpdater, enabled = !import.meta.env
 ```yaml
 # Actions → Release → Run workflow, with a version like 0.2.0.
 # Builds the Windows installer, signs the update, and publishes a GitHub Release
-# that installed copies of Ledgerly offer on their next launch.
+# that installed copies of Tally offer on their next launch.
 name: Release
 
 on:
@@ -411,8 +411,8 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: v${{ inputs.version }}
-          releaseName: Ledgerly v${{ inputs.version }}
-          releaseBody: "Install Ledgerly_${{ inputs.version }}_x64-setup.exe below. Already installed? Ledgerly offers this update when it opens."
+          releaseName: Tally v${{ inputs.version }}
+          releaseBody: "Install Tally_${{ inputs.version }}_x64-setup.exe below. Already installed? Tally offers this update when it opens."
           releaseDraft: true
           args: --config src-tauri/tauri.release.conf.json
 
@@ -434,13 +434,13 @@ jobs:
 ### Task 5: Signing key (owner pastes the secret)
 
 - [ ] **Step 1:** `npx tauri signer generate --ci -w "$USERPROFILE/.tauri/ledgerly.key"` (no password: one secret to paste; the file stays in the owner's profile).
-- [ ] **Step 2:** copy the contents of `ledgerly.key.pub` into `plugins.updater.pubkey`; commit `feat(updater): Ledgerly's update signing key (public half)`.
+- [ ] **Step 2:** copy the contents of `ledgerly.key.pub` into `plugins.updater.pubkey`; commit `feat(updater): Tally's update signing key (public half)`.
 - [ ] **Step 3:** the owner adds repo secret `TAURI_SIGNING_PRIVATE_KEY` = contents of `%USERPROFILE%\.tauri\ledgerly.key` (Settings → Secrets and variables → Actions → New repository secret), and backs the file up.
-- [ ] **Step 4:** local proof: with `TAURI_SIGNING_PRIVATE_KEY` set from the file, `npx tauri build --config src-tauri/tauri.release.conf.json` produces `bundle/nsis/Ledgerly_0.1.0_x64-setup.exe` and `.exe.sig`.
+- [ ] **Step 4:** local proof: with `TAURI_SIGNING_PRIVATE_KEY` set from the file, `npx tauri build --config src-tauri/tauri.release.conf.json` produces `bundle/nsis/Tally_0.1.0_x64-setup.exe` and `.exe.sig`.
 
 ### Task 6: Docs, push, end-to-end
 
 - [ ] **Step 1:** HANDOFF: a "Releasing" section (button, version rules, the key and its backup, SmartScreen on first install, don't run test and installed at once); update the Build line.
 - [ ] **Step 2:** commit, push `master`.
 - [ ] **Step 3:** owner runs Release `0.1.1`; installs from the Release page.
-- [ ] **Step 4:** owner runs Release `0.1.2`; opens Ledgerly → banner → Install and restart → Windows "Installed apps" shows 0.1.2.
+- [ ] **Step 4:** owner runs Release `0.1.2`; opens Tally → banner → Install and restart → Windows "Installed apps" shows 0.1.2.

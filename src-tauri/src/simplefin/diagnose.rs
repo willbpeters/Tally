@@ -311,7 +311,7 @@ mod tests {
     }
 
     #[test]
-    fn keeps_fields_ledgerly_does_not_model() {
+    fn keeps_fields_tally_does_not_model() {
         // The whole point: `extra` survives, because we never went through parse.rs.
         let out = sample_transactions(BODY, 5).unwrap();
         assert!(out.contains("extra"), "the extra object must survive sampling");

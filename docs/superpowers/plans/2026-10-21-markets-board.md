@@ -27,4 +27,4 @@
 - [ ] Implement, wire into `Markets.tsx`, CSS grid + heat classes, commit.
 
 ### Task 5 — Verify and preview
-- [ ] Full Vitest, tsc, `cargo test`, vite build. HANDOFF: Markets entry and the politeness-budget note (1 request per poll for the board). Cherry-pick into `Ledgerly-preview`; the Rust change needs the preview app restarted.
+- [ ] Full Vitest, tsc, `cargo test`, vite build. HANDOFF: Markets entry and the politeness-budget note (1 request per poll for the board). Cherry-pick into `Tally-preview`; the Rust change needs the preview app restarted.

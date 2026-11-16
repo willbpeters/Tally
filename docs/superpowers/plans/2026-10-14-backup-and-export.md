@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Ledgerly backs its database up automatically (daily, before migrations, before restores) and on demand, can restore any backup from Settings, and can export its data as CSV.
+**Goal:** Tally backs its database up automatically (daily, before migrations, before restores) and on demand, can restore any backup from Settings, and can export its data as CSV.
 
 **Architecture:** A new Rust module `src-tauri/src/backup/` does all the work, split into a pure naming module (file names carry date, time and kind) and small I/O modules for snapshotting (`VACUUM INTO` + `quick_check`), startup, restore staging and CSV export. A startup step runs in `lib.rs` *before* `db::open`, so a pending restore is swapped in and a pending migration is backed up before anything changes the file. The frontend gets one Settings card: a pure `BackupPanel` (tested with props) wrapped by a `BackupCard` that owns the queries and the folder/file pickers.
 
@@ -285,7 +285,7 @@ pub fn file_name(at: NaiveDateTime, kind: Kind, n: u32) -> String {
 }
 
 /// The inverse of `file_name`. Anything else in the folder parses to `None`,
-/// which is what keeps pruning away from files Ledgerly did not write.
+/// which is what keeps pruning away from files Tally did not write.
 pub fn parse(name: &str) -> Option<Parsed> {
     let body = name.strip_prefix(PREFIX)?.strip_suffix(EXT)?;
     if !body.is_ascii() || body.len() <= STAMP_LEN {
@@ -560,7 +560,7 @@ mod tests {
     #[test]
     fn settings_survive_a_save_and_load() {
         let (_dir, paths) = crate::backup::test_paths();
-        let s = BackupSettings { extra_folder: Some(r"E:\Ledgerly backups".into()) };
+        let s = BackupSettings { extra_folder: Some(r"E:\Tally backups".into()) };
         save(&paths.settings(), &s).unwrap();
         assert_eq!(load(&paths.settings()), s);
     }
@@ -818,7 +818,7 @@ pub fn names_in(dir: &Path) -> Vec<String> {
         .unwrap_or_default()
 }
 
-/// The backups in `dir`, newest first. Files Ledgerly did not name are skipped.
+/// The backups in `dir`, newest first. Files Tally did not name are skipped.
 pub fn list(dir: &Path) -> Vec<Entry> {
     let mut found: Vec<(naming::Parsed, Entry)> = names_in(dir)
         .into_iter()
@@ -973,14 +973,14 @@ mod tests {
     use crate::backup::{populated_db, snapshot, test_at, test_paths};
 
     #[test]
-    fn a_sqlite_file_that_is_not_ledgerly_is_refused() {
+    fn a_sqlite_file_that_is_not_tally_is_refused() {
         let (_dir, paths) = test_paths();
         let conn = populated_db(&paths);
         let other = paths.app_dir.join("other.sqlite");
         Connection::open(&other).unwrap().execute_batch("CREATE TABLE notes (t TEXT);").unwrap();
 
         let err = stage(&conn, &paths, &other, test_at("2026-10-14 09:00:00")).unwrap_err();
-        assert!(err.contains("isn't a Ledgerly backup"), "{err}");
+        assert!(err.contains("isn't a Tally backup"), "{err}");
         assert!(!paths.pending_restore().exists());
         assert!(snapshot::list(&paths.backups()).is_empty(), "no safety backup for a refused restore");
     }
@@ -1120,7 +1120,7 @@ use chrono::NaiveDateTime;
 use rusqlite::{Connection, OpenFlags};
 use std::path::Path;
 
-/// A healthy SQLite file that has Ledgerly's `accounts` table. Without the
+/// A healthy SQLite file that has Tally's `accounts` table. Without the
 /// second check, any `.sqlite` file on the disk could replace the finances.
 pub fn validate(path: &Path) -> Result<(), String> {
     snapshot::check(path)?;
@@ -1136,7 +1136,7 @@ pub fn validate(path: &Path) -> Result<(), String> {
     if tables == 1 {
         Ok(())
     } else {
-        Err("That file isn't a Ledgerly backup.".to_string())
+        Err("That file isn't a Tally backup.".to_string())
     }
 }
 
@@ -1332,7 +1332,7 @@ mod tests {
 
         let folder = export_all(&conn, out.path(), day()).unwrap();
 
-        assert!(folder.ends_with("Ledgerly export 2026-10-14"));
+        assert!(folder.ends_with("Tally export 2026-10-14"));
         for (file, _) in EXPORTS {
             assert!(folder.join(file).exists(), "{file} missing");
         }
@@ -1349,7 +1349,7 @@ mod tests {
         let out = tempfile::tempdir().unwrap();
         export_all(&conn, out.path(), day()).unwrap();
         let second = export_all(&conn, out.path(), day()).unwrap();
-        assert!(second.ends_with("Ledgerly export 2026-10-14 (2)"));
+        assert!(second.ends_with("Tally export 2026-10-14 (2)"));
     }
 }
 ```
@@ -1470,9 +1470,9 @@ pub fn query_to_csv(conn: &Connection, sql: &str) -> rusqlite::Result<String> {
     Ok(out)
 }
 
-/// `Ledgerly export 2026-10-14`, or `… (2)` if that exists already.
+/// `Tally export 2026-10-14`, or `… (2)` if that exists already.
 fn folder_for(base: &Path, day: NaiveDate) -> PathBuf {
-    let stem = format!("Ledgerly export {}", day.format("%Y-%m-%d"));
+    let stem = format!("Tally export {}", day.format("%Y-%m-%d"));
     (1..)
         .map(|n| if n == 1 { base.join(&stem) } else { base.join(format!("{stem} ({n})")) })
         .find(|p| !p.exists())
@@ -1927,8 +1927,8 @@ describe("BackupPanel", () => {
   });
 
   it("says when a restore did not happen", () => {
-    render(<BackupPanel {...props({ status: { ...status, restore_error: "That file isn't a Ledgerly backup." } })} />);
-    expect(screen.getByRole("alert")).toHaveTextContent("Restore didn't happen: That file isn't a Ledgerly backup.");
+    render(<BackupPanel {...props({ status: { ...status, restore_error: "That file isn't a Tally backup." } })} />);
+    expect(screen.getByRole("alert")).toHaveTextContent("Restore didn't happen: That file isn't a Tally backup.");
   });
 
   it("offers Remove only when an extra folder is set", () => {
@@ -1941,8 +1941,8 @@ describe("BackupPanel", () => {
 
   it("points to a finished export", () => {
     const onRevealExport = vi.fn();
-    render(<BackupPanel {...props({ exportedTo: "D:\\Ledgerly export 2026-10-14", onRevealExport })} />);
-    expect(screen.getByText(/Exported to D:\\Ledgerly export 2026-10-14/)).toBeInTheDocument();
+    render(<BackupPanel {...props({ exportedTo: "D:\\Tally export 2026-10-14", onRevealExport })} />);
+    expect(screen.getByText(/Exported to D:\\Tally export 2026-10-14/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Show in folder" }));
     expect(onRevealExport).toHaveBeenCalled();
   });
@@ -1991,7 +1991,7 @@ export function BackupPanel(p: BackupPanelProps) {
   const warning = status.last_attempt?.warning;
 
   return (
-    <Card title="Backups" subtitle="Copies of your data, made automatically each day you open Ledgerly.">
+    <Card title="Backups" subtitle="Copies of your data, made automatically each day you open Tally.">
       {status.restore_error && <p className="neg" role="alert">Restore didn't happen: {status.restore_error}</p>}
       {failure && <p className="neg" role="alert">Last backup failed: {failure}</p>}
       {warning && <p className="muted">{warning}</p>}
@@ -2016,7 +2016,7 @@ export function BackupPanel(p: BackupPanelProps) {
 
       <div style={{ marginTop: 16 }}>
         {backups.length === 0 ? (
-          <EmptyState title="No backups yet" body="One is made the next time Ledgerly opens, or now with Back up now." />
+          <EmptyState title="No backups yet" body="One is made the next time Tally opens, or now with Back up now." />
         ) : (
           <DataTable
             rows={backups}
@@ -2091,7 +2091,7 @@ export function BackupCard() {
 
   // On success the app restarts, so only failure needs handling here.
   const restoreFrom = (path: string, what: string) => {
-    if (!confirm(`Replace everything in Ledgerly with ${what}?\n\nYour current data is backed up first, so this can be undone. Ledgerly restarts to finish.`)) return;
+    if (!confirm(`Replace everything in Tally with ${what}?\n\nYour current data is backed up first, so this can be undone. Tally restarts to finish.`)) return;
     restore.mutate(path, { onError: failed("Restore didn't happen") });
   };
 
@@ -2114,8 +2114,8 @@ export function BackupCard() {
       onRestore={(b) => restoreFrom(b.path, `the backup from ${whenLabel(b.date, b.time, today)}`)}
       onRestoreFromFile={async () => {
         const file = await open({
-          title: "Choose a Ledgerly backup",
-          filters: [{ name: "Ledgerly backup", extensions: ["sqlite"] }],
+          title: "Choose a Tally backup",
+          filters: [{ name: "Tally backup", extensions: ["sqlite"] }],
         });
         if (typeof file === "string") restoreFrom(file, `the backup in ${file}`);
       }}

@@ -24,8 +24,8 @@ design builds on.
 
 ## Goal
 
-Behave like Copilot: transactions arrive already sorted where Ledgerly can tell,
-every new one waits in a **To review** list, and fixing one teaches Ledgerly the
+Behave like Copilot: transactions arrive already sorted where Tally can tell,
+every new one waits in a **To review** list, and fixing one teaches Tally the
 payee for next time.
 
 ## Decisions taken with the owner
@@ -169,7 +169,7 @@ any month), `bank_transaction_approve(id)`, `bank_transactions_approve_all()`.
   review list: transactions whose account type is `brokerage` are filtered in
   `src/domain/spending.ts`, next to the existing hidden-account filter.
 
-The owner's "Crypto (7081)" and "Robinhood individual (7202)" accounts are
+The owner's "Crypto (2222)" and "Robinhood individual (3333)" accounts are
 typed `cash` today; they need setting to Brokerage in Accounts for the filter
 to catch them. The ship notes say so.
 

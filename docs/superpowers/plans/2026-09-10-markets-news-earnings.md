@@ -43,7 +43,7 @@ dead rather than merely unwired — `indices::label_for` and
 - Rust tests run with `cd src-tauri && cargo test --lib <name>`.
 - TypeScript tests run with `npx vitest run <path>`.
 - Every HTTP call uses the browser-like User-Agent already required by Yahoo:
-  `Mozilla/5.0 (Windows NT 10.0; Win64; x64) Ledgerly/0.1`
+  `Mozilla/5.0 (Windows NT 10.0; Win64; x64) Tally/0.1`
 - Fixtures live in `src-tauri/src/market/fixtures/` and are `include_str!`-ed.
 - Dates are stored as `YYYY-MM-DD`; timestamps as RFC 3339.
 
@@ -222,7 +222,7 @@ that is derived from the link's host.
 - [ ] **Step 1: Capture the fixture**
 
 ```bash
-curl -s -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Ledgerly/0.1" \
+curl -s -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Tally/0.1" \
   "https://feeds.finance.yahoo.com/rss/2.0/headline?s=MU&region=US&lang=en-US" \
   -o src-tauri/src/market/fixtures/yahoo_news_mu.xml
 head -c 200 src-tauri/src/market/fixtures/yahoo_news_mu.xml
@@ -660,7 +660,7 @@ Put above the `mod tests` block in `src-tauri/src/market/yahoo_news.rs`:
 use crate::market::rss::{parse_feed, NewsItem};
 
 /// Yahoo rejects plain clients; the same UA the price provider uses works.
-pub const UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Ledgerly/0.1";
+pub const UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Tally/0.1";
 
 pub fn feed_url(ticker: &str) -> String {
     format!(
@@ -727,7 +727,7 @@ funds*, so this task is what makes the screen's structure real.
 - [ ] **Step 1: Capture the fixture**
 
 ```bash
-curl -s -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Ledgerly/0.1" \
+curl -s -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Tally/0.1" \
   "https://query1.finance.yahoo.com/v1/finance/search?q=MU&newsCount=0" \
   -o src-tauri/src/market/fixtures/yahoo_search_mu.json
 head -c 200 src-tauri/src/market/fixtures/yahoo_search_mu.json
@@ -987,7 +987,7 @@ contains **two** `rows` arrays, only the first of which is quarterly.
 - [ ] **Step 1: Capture the fixtures**
 
 ```bash
-UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) Ledgerly/0.1"
+UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) Tally/0.1"
 D=src-tauri/src/market/fixtures
 curl -s -A "$UA" "https://api.nasdaq.com/api/calendar/earnings?date=2026-09-11" -o $D/nasdaq_calendar.json
 curl -s -A "$UA" "https://api.nasdaq.com/api/company/MU/earnings-surprise" -o $D/nasdaq_surprise_mu.json

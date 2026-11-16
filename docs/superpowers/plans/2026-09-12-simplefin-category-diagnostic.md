@@ -10,7 +10,7 @@ category.
 **Architecture:** A new pure module `simplefin/diagnose.rs` samples transactions
 out of a raw `/accounts` body and redacts the money out of them. `client.rs`
 gains `fetch_raw`, which returns the unparsed body — `parse.rs` deliberately
-drops every field Ledgerly does not model, which is exactly why the existing
+drops every field Tally does not model, which is exactly why the existing
 fetch path cannot answer this question. A thin Tauri command wires the two
 together; the UI is a button and a `<pre>` block in the existing SimpleFIN card.
 Nothing is written to the database.
@@ -87,7 +87,7 @@ Create `src-tauri/src/simplefin/diagnose.rs`:
 //! of an `/accounts` response, and redact the money out of them.
 //!
 //! No I/O, no database. This module exists because `parse.rs` deliberately
-//! keeps only the fields Ledgerly models, dropping SimpleFIN's free-form
+//! keeps only the fields Tally models, dropping SimpleFIN's free-form
 //! `extra` object — the very thing we are trying to find. Everything here
 //! therefore works on untouched `serde_json::Value` trees.
 
@@ -150,7 +150,7 @@ mod tests {
     }
 
     #[test]
-    fn keeps_fields_ledgerly_does_not_model() {
+    fn keeps_fields_tally_does_not_model() {
         // The whole point: `extra` survives, because we never went through parse.rs.
         let out = sample_transactions(BODY, 5).unwrap();
         assert!(out.contains("extra"), "the extra object must survive sampling");
@@ -231,7 +231,7 @@ const PER_ACCOUNT: usize = 2;
 /// is the entire purpose: `parse.rs` would drop them.
 pub fn sample_transactions(body: &str, n: usize) -> Result<String, String> {
     let root: Value = serde_json::from_str(body).map_err(|_| {
-        "SimpleFIN sent a response Ledgerly couldn't read. Try again in a minute.".to_string()
+        "SimpleFIN sent a response Tally couldn't read. Try again in a minute.".to_string()
     })?;
 
     let mut out: Vec<Value> = Vec::new();
@@ -521,7 +521,7 @@ function with these two functions:
 ```rust
 /// The raw `/accounts` body, unparsed.
 ///
-/// The diagnostic needs this because `parse` keeps only the fields Ledgerly
+/// The diagnostic needs this because `parse` keeps only the fields Tally
 /// models and drops everything else — including the free-form `extra` object.
 pub fn fetch_raw(access_url: &str, range: Option<Range>) -> Result<String, String> {
     let (url, user, pass) = accounts_request_parts(access_url, range)?;
@@ -532,7 +532,7 @@ pub fn fetch_raw(access_url: &str, range: Option<Range>) -> Result<String, Strin
     let resp = req.send().map_err(|_| NETWORK_ERR.to_string())?;
     match resp.status().as_u16() {
         200 => resp.text().map_err(|_| NETWORK_ERR.to_string()),
-        402 => Err("Your SimpleFIN subscription needs renewing before Ledgerly can sync.".into()),
+        402 => Err("Your SimpleFIN subscription needs renewing before Tally can sync.".into()),
         403 => Err("SimpleFIN rejected the saved connection. Disconnect, then connect again with a new setup token.".into()),
         s => Err(format!("SimpleFIN returned an unexpected status ({s}). Try again later.")),
     }

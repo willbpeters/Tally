@@ -6,7 +6,7 @@
 
 ## The problem
 
-Everything Ledgerly knows lives in one unencrypted SQLite file,
+Everything Tally knows lives in one unencrypted SQLite file,
 `%APPDATA%\com.ledgerly.app\finance.sqlite`. The only copy of it is
 `finance.sqlite.backup-pre-v2`, made by hand weeks ago. A bad migration, a bug
 that deletes rows, a corrupt write or a failed disk loses everything, and nothing
@@ -103,7 +103,7 @@ the app would turn a backup problem into a lost-access problem.
    time, kind and size. A separate **"Restore from a file…"** button opens a
    file picker, for a backup living only in the extra folder (the case where
    the PC's drive died and this is a fresh install).
-2. The owner confirms: *"Replace everything in Ledgerly with the backup from
+2. The owner confirms: *"Replace everything in Tally with the backup from
    14 Oct 2026, 09:30? Your current data is backed up first, so this can be
    undone."*
 3. The command, holding the database lock:
@@ -130,8 +130,8 @@ database is left untouched, and the failure appears in Settings.
 
 ## Export
 
-"Export to CSV…" opens a folder picker. Ledgerly creates
-`Ledgerly export 2026-10-14` inside it (with ` (2)` etc. if that exists) and
+"Export to CSV…" opens a folder picker. Tally creates
+`Tally export 2026-10-14` inside it (with ` (2)` etc. if that exists) and
 writes:
 
 | File | Rows | Readable columns instead of IDs |
@@ -228,7 +228,7 @@ Rust, against temporary folders and real SQLite files:
   `-journal` file; a corrupt pending file is deleted and the database is left
   alone; a pending migration produces a `pre-migration` backup; a second launch
   on the same day makes no new daily.
-- `restore`: a non-Ledgerly SQLite file is refused; a valid one produces a
+- `restore`: a non-Tally SQLite file is refused; a valid one produces a
   `pre-restore` backup and a pending file.
 - `export`: quoting of commas, quotes and line breaks; the BOM; the formula
   guard prefixes text but not negative numbers; each file's header and a row

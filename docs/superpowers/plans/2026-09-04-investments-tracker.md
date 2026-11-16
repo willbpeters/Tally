@@ -140,7 +140,7 @@ non-empty dir).
 
 Run:
 ```bash
-cd "C:/Users/willi/Dev/FinTech"
+cd "~/Dev/FinTech"
 npm create tauri-app@latest fintech-scaffold -- --template react-ts --manager npm
 ```
 When prompted for anything, accept defaults. Expected: creates `fintech-scaffold/`
@@ -150,8 +150,8 @@ with `src/`, `src-tauri/`, `package.json`, etc.
 
 Run (PowerShell):
 ```bash
-Get-ChildItem -Force "C:/Users/willi/Dev/FinTech/fintech-scaffold" | Where-Object { $_.Name -ne '.git' -and $_.Name -ne '.gitignore' } | Move-Item -Destination "C:/Users/willi/Dev/FinTech"
-Remove-Item -Recurse -Force "C:/Users/willi/Dev/FinTech/fintech-scaffold"
+Get-ChildItem -Force "~/Dev/FinTech/fintech-scaffold" | Where-Object { $_.Name -ne '.git' -and $_.Name -ne '.gitignore' } | Move-Item -Destination "~/Dev/FinTech"
+Remove-Item -Recurse -Force "~/Dev/FinTech/fintech-scaffold"
 ```
 Expected: repo root now has `src/`, `src-tauri/`, `package.json`, `vite.config.ts`,
 `index.html`. If the scaffold brought its own `.gitignore`, keep the repo's
@@ -161,7 +161,7 @@ existing one (do not overwrite).
 
 Run:
 ```bash
-cd "C:/Users/willi/Dev/FinTech"
+cd "~/Dev/FinTech"
 npm install
 ```
 Expected: `node_modules/` created, no errors.
@@ -191,7 +191,7 @@ git commit -m "chore: scaffold Tauri + React + TypeScript app"
 
 Run:
 ```bash
-cd "C:/Users/willi/Dev/FinTech"
+cd "~/Dev/FinTech"
 npm install react-router-dom @tanstack/react-query recharts papaparse
 npm install -D vitest @testing-library/react @testing-library/jest-dom jsdom @types/papaparse
 ```
@@ -540,7 +540,7 @@ compiles, then fill them in their tasks.)
 
 Run:
 ```bash
-cd "C:/Users/willi/Dev/FinTech"
+cd "~/Dev/FinTech"
 "" | Out-File -Encoding utf8 src-tauri/src/commands/securities.rs
 "" | Out-File -Encoding utf8 src-tauri/src/commands/transactions.rs
 "" | Out-File -Encoding utf8 src-tauri/src/commands/prices.rs

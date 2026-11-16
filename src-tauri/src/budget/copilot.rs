@@ -486,9 +486,9 @@ mod tests {
     /// (matched by the two rows below) plus whatever a test adds.
     fn covered(extra: Vec<ExistingTxn>) -> (Vec<CopilotRow>, Snapshot) {
         let rows = parse_csv(&csv(&[
-            &row("2026-07-01", "Diner", "12.50", "Eating Out", "regular", "9849"),
-            &row("2026-07-05", "Diner", "12.50", "Eating Out", "regular", "9849"),
-            &row("2026-07-20", "Later", "3.00", "Other", "regular", "9849"),
+            &row("2026-07-01", "Diner", "12.50", "Eating Out", "regular", "1234"),
+            &row("2026-07-05", "Diner", "12.50", "Eating Out", "regular", "1234"),
+            &row("2026-07-20", "Later", "3.00", "Other", "regular", "1234"),
         ])).unwrap();
         let mut s = snap();
         s.txns.extend(extra);
@@ -496,7 +496,7 @@ mod tests {
     }
 
     #[test]
-    fn a_ledgerly_row_copilot_does_not_have_is_offered_for_removal() {
+    fn a_tally_row_copilot_does_not_have_is_offered_for_removal() {
         // The owner deletes a transaction in Copilot when they are paid back.
         let (rows, s) = covered(vec![existing(20, "2026-07-10", 45.0)]);
         let p = plan(&rows, &s);
@@ -571,8 +571,8 @@ mod tests {
         // The dry run matched a $10 Polymarket row to Copilot's $10
         // Chick-fil-a a day earlier.
         let rows = parse_csv(&csv(&[
-            &row("2026-07-02", "Chick-fil-a", "10.00", "Eating Out", "regular", "9849"),
-            &row("2026-07-20", "Later", "3.00", "Other", "regular", "9849"),
+            &row("2026-07-02", "Chick-fil-a", "10.00", "Eating Out", "regular", "1234"),
+            &row("2026-07-20", "Later", "3.00", "Other", "regular", "1234"),
         ])).unwrap();
         let mut s = snap();
         s.txns.push(ExistingTxn { label: "Polymarket".into(), description: "POLYMARKET 12345".into(), ..existing(70, "2026-07-03", -10.0) });
@@ -585,9 +585,9 @@ mod tests {
     #[test]
     fn a_shared_word_matches_across_days_and_the_same_day_needs_none() {
         let rows = parse_csv(&csv(&[
-            &row("2026-07-02", "Chick-fil-a", "10.00", "Eating Out", "regular", "9849"),
-            &row("2026-07-07", "Some Name", "8.00", "Other", "regular", "9849"),
-            &row("2026-07-20", "Later", "3.00", "Other", "regular", "9849"),
+            &row("2026-07-02", "Chick-fil-a", "10.00", "Eating Out", "regular", "1234"),
+            &row("2026-07-07", "Some Name", "8.00", "Other", "regular", "1234"),
+            &row("2026-07-20", "Later", "3.00", "Other", "regular", "1234"),
         ])).unwrap();
         let mut s = snap();
         s.txns.extend([
@@ -629,7 +629,7 @@ mod tests {
 
     fn snap() -> Snapshot {
         Snapshot {
-            accounts: vec![AccountRef { id: 1, name: "Card (9849)".into() }],
+            accounts: vec![AccountRef { id: 1, name: "Card (1234)".into() }],
             txns: vec![
                 existing(10, "2026-07-01", -12.5),
                 existing(11, "2026-07-05", -12.5),
@@ -650,7 +650,7 @@ mod tests {
 
     #[test]
     fn quoted_fields_and_doubled_quotes_parse() {
-        let rows = parse_csv(&csv(&[&row("2026-07-02", "Joe \"\"The\"\" Diner, Inc", "12.50", "Eating Out", "regular", "9849")])).unwrap();
+        let rows = parse_csv(&csv(&[&row("2026-07-02", "Joe \"\"The\"\" Diner, Inc", "12.50", "Eating Out", "regular", "1234")])).unwrap();
         assert_eq!(rows[0].name, "Joe \"The\" Diner, Inc");
     }
 
@@ -719,10 +719,10 @@ mod tests {
     #[test]
     fn a_row_inside_the_span_matches_closest_date_first_and_only_once() {
         let rows = parse_csv(&csv(&[
-            &row("2026-07-04", "Diner", "12.50", "Eating Out", "regular", "9849"),
-            &row("2026-07-02", "Diner", "12.50", "Eating Out", "regular", "9849"),
+            &row("2026-07-04", "Diner", "12.50", "Eating Out", "regular", "1234"),
+            &row("2026-07-02", "Diner", "12.50", "Eating Out", "regular", "1234"),
             // Moves the cutoff past both Tally rows.
-            &row("2026-07-10", "Later", "1.00", "Other", "regular", "9849"),
+            &row("2026-07-10", "Later", "1.00", "Other", "regular", "1234"),
         ])).unwrap();
         let mut s = snap();
         for t in &mut s.txns { t.label = "Joe's Diner".into(); }
@@ -736,7 +736,7 @@ mod tests {
     #[test]
     fn an_unmatched_row_inside_the_span_is_added_to_its_account() {
         // The bank's record lacks it or has it differently: Copilot's copy goes in.
-        let rows = parse_csv(&csv(&[&row("2026-07-10", "Mystery", "9.99", "Other", "regular", "9849")])).unwrap();
+        let rows = parse_csv(&csv(&[&row("2026-07-10", "Mystery", "9.99", "Other", "regular", "1234")])).unwrap();
         let p = plan(&rows, &snap());
         assert_eq!(p.additions.len(), 1);
         assert_eq!(p.additions[0].account, Target::Account(1));
@@ -744,7 +744,7 @@ mod tests {
 
     #[test]
     fn a_removed_row_is_not_matched_so_copilots_copy_shows() {
-        let rows = parse_csv(&csv(&[&row("2026-07-01", "Diner", "12.50", "Eating Out", "regular", "9849")])).unwrap();
+        let rows = parse_csv(&csv(&[&row("2026-07-01", "Diner", "12.50", "Eating Out", "regular", "1234")])).unwrap();
         let mut s = snap();
         s.txns.iter_mut().find(|t| t.id == 10).unwrap().removed = true;
         let p = plan(&rows, &s);
@@ -754,14 +754,14 @@ mod tests {
 
     #[test]
     fn a_match_carries_copilots_name() {
-        let rows = parse_csv(&csv(&[&row("2026-07-01", "Corner Diner", "12.50", "Eating Out", "regular", "9849")])).unwrap();
+        let rows = parse_csv(&csv(&[&row("2026-07-01", "Corner Diner", "12.50", "Eating Out", "regular", "1234")])).unwrap();
         let p = plan(&rows, &snap());
         assert_eq!(p.matches[0].name, "Corner Diner");
     }
 
     #[test]
     fn a_row_before_the_span_is_added_to_its_account() {
-        let rows = parse_csv(&csv(&[&row("2026-01-10", "Old Diner", "8.00", "Eating Out", "regular", "9849")])).unwrap();
+        let rows = parse_csv(&csv(&[&row("2026-01-10", "Old Diner", "8.00", "Eating Out", "regular", "1234")])).unwrap();
         let p = plan(&rows, &snap());
         assert_eq!(p.additions.len(), 1);
         assert_eq!(p.additions[0].account, Target::Account(1));
@@ -865,9 +865,9 @@ mod tests {
     fn a_match_tally_dates_after_the_cutoff_is_left_alone_and_not_offered() {
         // Copilot's last row is 07-20; Tally has the same purchase on 07-21.
         let rows = parse_csv(&csv(&[
-            &row("2026-07-01", "Diner", "12.50", "Eating Out", "regular", "9849"),
-            &row("2026-07-05", "Diner", "12.50", "Eating Out", "regular", "9849"),
-            &row("2026-07-20", "Late", "3.00", "Other", "regular", "9849"),
+            &row("2026-07-01", "Diner", "12.50", "Eating Out", "regular", "1234"),
+            &row("2026-07-05", "Diner", "12.50", "Eating Out", "regular", "1234"),
+            &row("2026-07-20", "Late", "3.00", "Other", "regular", "1234"),
         ])).unwrap();
         let mut s = snap();
         s.txns.push(ExistingTxn { label: "Late Night".into(), ..existing(40, "2026-07-21", -3.0) });

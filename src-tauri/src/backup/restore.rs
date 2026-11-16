@@ -47,7 +47,7 @@ mod tests {
     use crate::backup::{populated_db, snapshot, test_at, test_paths};
 
     #[test]
-    fn a_sqlite_file_that_is_not_ledgerly_is_refused() {
+    fn a_sqlite_file_that_is_not_tally_is_refused() {
         let (_dir, paths) = test_paths();
         let conn = populated_db(&paths);
         let other = paths.app_dir.join("other.sqlite");

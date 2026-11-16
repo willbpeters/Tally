@@ -71,7 +71,7 @@ replace it and are better shaped anyway, because they carry consensus and
 actuals together.
 
 All sources are keyless and free, consistent with the project rule that
-Ledgerly uses no paid services.
+Tally uses no paid services.
 
 ## Architecture
 

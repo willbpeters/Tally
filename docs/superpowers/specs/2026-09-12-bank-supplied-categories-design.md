@@ -5,7 +5,7 @@
 
 ## The problem
 
-Ledgerly auto-categorises bank transactions at sync time. The ladder in
+Tally auto-categorises bank transactions at sync time. The ladder in
 `budget/categorize.rs` runs: a manual choice, then user rules (MCC, payee,
 description), then the merchant-code map in `budget/mcc.rs`, then the sign of
 the amount.
@@ -19,7 +19,7 @@ merchants whose code is generic or absent.
 `memo`, `mcc` and `pending` from each transaction. The SimpleFIN protocol also
 allows an optional free-form `extra` object, and that is where a bridge passes
 through the institution's own enrichment — including, on some connections, a
-category. **Ledgerly discards `extra` entirely.** That is the gap this design
+category. **Tally discards `extra` entirely.** That is the gap this design
 closes.
 
 ## What we do not know
