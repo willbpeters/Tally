@@ -1,16 +1,38 @@
 # Tally — Handoff & Next Steps
 
-**Last updated:** 2026-10-28
-**Repo:** `C:\Users\willi\dev\Ledgerly` → GitHub `willbpeters/Tally` (public: the updater reads its Releases without signing in), branch `master`
+**Last updated:** 2026-11-02
+**Repo:** `%USERPROFILE%\Dev\Tally` → GitHub `willbpeters/Tally` (public: the updater reads its Releases without signing in), branch `master`
 
 **Renamed from Ledgerly to Tally on 2026-10-24** (0.1.3). Only what the owner
-sees changed. These still say "ledgerly" on purpose, because renaming them would
-lose data or settings: the identifier `com.ledgerly.app` (the `%APPDATA%` data
-folder and the updater's identity), the Windows Credential Manager service
-`Ledgerly` (the saved SimpleFIN URL), the `ledgerly.*` localStorage keys, the
-`ledgerly-` backup file prefix, the Rust crate and binary `ledgerly`, the
-`LEDGERLY_DB` test variable, and this local folder (moving it forces a full
-Rust rebuild). The GitHub repo was renamed to `willbpeters/Tally`; GitHub
+sees changed. A second sweep on 2026-11-02 renamed everything that is not an
+identity: the npm package (`tally`; private, nothing reads it), the dev
+launcher `scripts/start-tally.cmd` (no shortcut pointed at the old name any
+more), the mockups in `docs/design/tally-dashboard/`, Rust test names, the
+`TALLY_DB` live-test variable, and the prose in the plans and specs. These
+still say "ledgerly" on purpose, because renaming them would lose data or
+settings, and each waits on the owner's decision:
+- the identifier `com.ledgerly.app`: the `%APPDATA%` folder (database,
+  backups, `device-sync.json`), the `%LOCALAPPDATA%` WebView2 profile that
+  holds localStorage, the taskbar AppUserModelID, and the folders the
+  uninstaller's "delete app data" box removes. It also sets the Installed
+  apps **Publisher**, which shows "ledgerly" (`bundle.publisher` could
+  override that alone).
+- the Credential Manager service `Ledgerly` (the saved SimpleFIN URL);
+- the `ledgerly.*` localStorage keys (theme, holdings columns and collapsed
+  accounts, insight rail, last sync, ask-before-remove);
+- the `ledgerly-` backup file prefix (`backup/naming.rs` lists, restores and
+  prunes only names with it, and every existing backup has it);
+- the Rust crate and binary `ledgerly`, which the installed copy runs as
+  `%LOCALAPPDATA%\Tally\ledgerly.exe`. Tauri's installer handles a binary
+  rename on update (it deletes the old exe and retargets the Start menu and
+  Desktop shortcuts, using the `MainBinaryName` it saved in the registry), but
+  not a **taskbar pin**, which would break. `scripts/set-version.mjs` matches
+  `name = "ledgerly"` in `Cargo.lock`, so it must change in the same commit;
+- `%USERPROFILE%\.tauri\ledgerly.key`, the update signing key's file name on
+  this machine (outside the repo; only the file name, harmless).
+
+Device sync has no old name in it: the folder is "Tally Sync" and the change
+files carry none. The GitHub repo was renamed to `willbpeters/Tally`; GitHub
 redirects the old `willbpeters/Ledgerly` address, which copies from before
 0.1.3 still use to find updates, so **never create a new repo named
 `Ledgerly`** on this account. The installer hook
@@ -247,7 +269,7 @@ budgeting and spending module.
   categories, and has one button. Pure planner in `budget/copilot.rs`;
   writing in `store::apply_copilot_plan`. Check against a real export
   (into a throwaway copy of the database, migrated first):
-  `LEDGERLY_DB=... COPILOT_CSV=... [COPILOT_APPLY=1] cargo test copilot_live -- --ignored --nocapture`.
+  `TALLY_DB=... COPILOT_CSV=... [COPILOT_APPLY=1] cargo test copilot_live -- --ignored --nocapture`.
   Original spec: `docs/superpowers/specs/2026-10-15-copilot-import-design.md`
   (its "the owner's choice wins", "skipped" and name-translation rules no
   longer apply)
@@ -596,11 +618,11 @@ pattern (manual / CSV / SimpleFIN), `secrets.rs`, and the single DB module.
   `cargo clean` in `src-tauri` once.
 
 - **`cargo` is not on PATH on this machine.** Rust *is* installed
-  (`C:\Users\willi\.cargo\bin`, stable MSVC toolchain, VS 2022 Build Tools),
+  (`%USERPROFILE%\.cargo\bin`, stable MSVC toolchain, VS 2022 Build Tools),
   but that folder is missing from the user PATH, so `cargo` and
   `npm run tauri dev` fail in a fresh terminal. Either add it permanently:
-  `[Environment]::SetEnvironmentVariable("Path", [Environment]::GetEnvironmentVariable("Path","User") + ";C:\Users\willi\.cargo\bin", "User")`
-  or prefix a session with `$env:Path = "C:\Users\willi\.cargo\bin;" + $env:Path`.
+  `[Environment]::SetEnvironmentVariable("Path", [Environment]::GetEnvironmentVariable("Path","User") + ";%USERPROFILE%\.cargo\bin", "User")`
+  or prefix a session with `$env:Path = "%USERPROFILE%\.cargo\bin;" + $env:Path`.
 - **Never use `toISOString().slice(0, 10)` for "today".** It is the UTC date.
   Use `localIsoDate()`. UTC is still right for *shifting* an ISO date by whole
   days (`shiftDays` in `history.ts` and `market.ts`), which is why those stay.
@@ -805,9 +827,10 @@ D. **Stock splits** — there is no `split` transaction type, so a split breaks
    `buildPositions` / `clampOversells` / `reconstructSeries`.
 E. **CI** — no `.github/workflows` yet. A GitHub Action on push running
    `npm test`, `npx tsc --noEmit` and `cargo test` on `windows-latest`.
-F. **Hardening / tidy-up:** `"csp": null` in `tauri.conf.json` disables the
-   content security policy while the app renders third-party headlines — set
-   a real CSP. (The crate rename from `fintech-scaffold` to `ledgerly` is done.)
+F. **Hardening / tidy-up:** the CSP is set as of 2026-11-16 (`csp` for the
+   built app; `devCsp` adds `unsafe-inline` scripts and the Vite websocket
+   that hot reload needs). (The crate rename from `fintech-scaffold` to
+   `ledgerly` is done.)
    Two component tests time out when the machine is busy
    (seen in `Activity.test.tsx`); raise their timeout or make them cheaper.
    Stooq's unused `parse_daily_csv` / `daily_url` warn on every build.
@@ -852,7 +875,7 @@ G. **Dividends in returns** — dividends add cash but count toward no gain
 
 - **Budgeting spec:** `docs/superpowers/specs/2026-09-07-budgeting-design.md`
 - **Design canvas:** the four dashboard directions and the type study live in
-  `docs/design/ledgerly-dashboard/` as `.dc.html` sources; the 2.5MB seeded canvas is
+  `docs/design/tally-dashboard/` as `.dc.html` sources; the 2.5MB seeded canvas is
   git-ignored and rebuilt from them.
 - **Design specs:** `docs/superpowers/specs/2026-09-04-investments-tracker-design.md`
   and `docs/superpowers/specs/2026-09-07-ui-redesign-and-simplefin-design.md`
@@ -900,7 +923,7 @@ Spec: `docs/superpowers/specs/2026-10-24-auto-update-design.md`.
 ## Commands
 
 The easiest start is the **"Tally (test)" shortcut on the Desktop**, which
-runs `scripts/start-ledgerly.cmd`: it puts Rust on the PATH, then runs
+runs `scripts/start-tally.cmd`: it puts Rust on the PATH, then runs
 `npm run tauri dev` from the project folder. Closing its console window closes
 the app. The first start after code or dependency changes takes a minute
 (Rust compiles, Vite re-optimises); later starts take seconds.

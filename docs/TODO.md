@@ -23,9 +23,9 @@ are small enough to go straight to test-first implementation.
 - [ ] **2. CI on GitHub.** There is no `.github/workflows` yet. Add an Action on
       push running `npm test`, `npx tsc --noEmit` and `cargo test` on
       `windows-latest`, so a broken change is caught on GitHub, not in the app.
-- [ ] **3. Hardening.** `"csp": null` in `tauri.conf.json` turns off the
-      content security policy while the app shows third-party headlines; set a
-      real one. Remove Stooq's unused `parse_daily_csv` / `daily_url`, which warn
+- [ ] **3. Hardening.** ~~`"csp": null` in `tauri.conf.json`~~ Done 2026-11-16:
+      a strict CSP is set (`csp` for the built app, `devCsp` adds what Vite
+      hot reload needs). Still to do: remove Stooq's unused `parse_daily_csv` / `daily_url`, which warn
       on every build. Two component tests time out on a busy machine (seen in
       `Activity.test.tsx`); give them more time or make them cheaper.
 
