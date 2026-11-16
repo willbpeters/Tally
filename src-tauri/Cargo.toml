@@ -3,6 +3,8 @@ name = "ledgerly"
 version = "0.2.1"
 description = "Local-first personal finance desktop app"
 authors = ["Will Peters"]
+license = "MIT"
+repository = "https://github.com/willbpeters/Tally"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -23,7 +25,7 @@ tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-rusqlite = { version = "0.32", features = ["bundled"] }
+rusqlite = { version = "0.41", features = ["bundled"] }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "blocking"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 anyhow = "1"

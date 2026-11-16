@@ -114,7 +114,7 @@ fn cell(value: ValueRef<'_>) -> String {
 /// the file as UTF-8, so accented payee names survive.
 pub fn query_to_csv(conn: &Connection, sql: &str) -> rusqlite::Result<String> {
     let mut stmt = conn.prepare(sql)?;
-    let header: Vec<String> = stmt.column_names().iter().map(|c| quote(c)).collect();
+    let header: Vec<String> = stmt.column_names().map(quote).collect();
     let width = header.len();
     let mut out = String::from("\u{FEFF}");
     out.push_str(&header.join(","));
