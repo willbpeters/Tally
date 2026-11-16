@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { PageHeader, Card, Button, Badge, EmptyState } from "../../ui/components";
+import { Card, Button, Badge, EmptyState } from "../../ui/components";
 import { money, pct, timeAgo } from "../../ui/format";
 import { useMarketRefresh, useMarketBoardRefresh } from "../../data/queries";
 import { useRefreshPrices } from "../../data/useRefresh";
@@ -93,8 +93,6 @@ export function Markets() {
 
   return (
     <>
-      <PageHeader subtitle="The market today, and what happened to what you own" />
-
       <TodayBoard rows={view.indices} you={you}
         actions={<Button size="sm" loading={refresh.isPending || prices.isPending} onClick={refreshAll}>Refresh</Button>}
         footer={<>
@@ -105,10 +103,11 @@ export function Markets() {
             : <p className="muted" style={{ fontSize: 12, marginTop: 8, marginBottom: 0 }}>
                 Nothing fetched yet — press Refresh.
               </p>}
-          <p className="muted" style={{ fontSize: 12, marginTop: 4, marginBottom: 0 }}>
-            {prices.isSuccess ? `Updated ${prices.data} prices. ` : ""}
-            Prices and the board refresh on their own: every minute during US market hours, every 15 minutes otherwise.
-          </p>
+          {prices.isSuccess && (
+            <p className="muted" style={{ fontSize: 12, marginTop: 4, marginBottom: 0 }}>
+              Updated {prices.data} prices.
+            </p>
+          )}
           {prices.isError && (
             <div className="notice neg" style={{ marginTop: 8 }}>
               Couldn't refresh prices. Check your connection and try again.
@@ -129,14 +128,14 @@ export function Markets() {
         ))} />
       </div>
 
-      <Card title="Your companies" subtitle="Biggest movers first. Headlines sit beside moves, not as their cause.">
+      <Card title="Your companies">
         {view.companies.length === 0
           ? <EmptyState title="No companies held"
               body="Individual stocks appear here once you hold them. Press Refresh to fetch headlines." />
           : view.companies.map((r) => <CompanyRow key={r.security_id} r={r} />)}
       </Card>
 
-      <Card title="Your funds" subtitle="Index funds have no company news — what they track is the story.">
+      <Card title="Your funds">
         {view.funds.length === 0
           ? <EmptyState title="No funds held" body="Index funds and ETFs appear here." />
           : view.funds.map((r) => (

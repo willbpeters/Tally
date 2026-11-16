@@ -50,25 +50,20 @@ describe("ValueCard", () => {
     expect(screen.getByRole("tab", { name: "Liabilities" })).toHaveTextContent("$0.00");
   });
 
-  it("opens on investments, and a tab swaps the caveat", () => {
+  it("opens on investments, and a tab selects its line", () => {
     render(<ValueCard summary={summary()} series={[]} />);
     expect(screen.getByRole("tab", { name: "Investments" })).toHaveAttribute("aria-selected", "true");
     fireEvent.click(screen.getByRole("tab", { name: "Cash" }));
     expect(screen.getByRole("tab", { name: "Cash" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("tab", { name: "Investments" })).toHaveAttribute("aria-selected", "false");
-    expect(screen.getByText(CHART_MODES.cash.subtitle)).toBeInTheDocument();
   });
 });
 
-// The chart's dataKey and its caveat are two encodings of the same choice, kept
-// in one table so a line can never be plotted under another line's caveat.
+// The tab order and the field each tab plots live in one table, so a tab can
+// never be drawn from another tab's line.
 describe("CHART_MODES", () => {
-  it("plots a different field, and states a different caveat, per mode", () => {
+  it("plots a different field per mode, in tab order", () => {
     expect(MODE_ORDER.map((m) => CHART_MODES[m].dataKey)).toEqual(["invested", "cash", "liabilities"]);
-    expect(new Set(MODE_ORDER.map((m) => CHART_MODES[m].subtitle)).size).toBe(3);
-    // The share-count caveat is about holdings; on the cash line it would be untrue.
-    expect(CHART_MODES.invested.subtitle).toMatch(/Share counts/);
-    expect(CHART_MODES.cash.subtitle).not.toMatch(/Share counts/);
   });
 });
 

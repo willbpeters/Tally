@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { PageHeader, Card, EmptyState, Segmented } from "../../ui/components";
+import { Card, EmptyState, Segmented } from "../../ui/components";
 import { PriceChart, type ChartPoint } from "../../ui/PriceChart";
 import { money, pct } from "../../ui/format";
 import { useChartColors } from "../../ui/chartColors";
@@ -80,8 +80,6 @@ export function Charts() {
 
   return (
     <>
-      <PageHeader subtitle="Your investments over time, from a day to their whole history" />
-
       {held.length === 0 ? (
         <Card><EmptyState title="Nothing invested yet" body="Holdings appear here once you have them." /></Card>
       ) : (
@@ -113,20 +111,15 @@ export function Charts() {
                 base={tf === "1d" ? view.previous : null} />
             )}
 
-            <p className="card-subtitle" style={{ marginTop: 8 }}>
-              {pick === ALL
-                ? "What you hold today, priced back through time — today's share counts, not what you held then. Mutual funds move with the ETF that tracks the same index during the day, then settle to their real price at the close."
-                : view.estimated
-                  ? "Price per share. A mutual fund prices once a day, after the close; during the day this follows the ETF that tracks the same index."
-                  : "Price per share."}
-              {tf === "1d" && " The dotted line is the previous close."}
-              {view.unpriced.length > 0 && ` ${view.unpriced.join(", ")} ${view.unpriced.length === 1 ? "has" : "have"} no price history and ${view.unpriced.length === 1 ? "is" : "are"} counted at today's value.`}
-            </p>
+            {(tf === "1d" || view.unpriced.length > 0) && (
+              <p className="card-subtitle" style={{ marginTop: 8 }}>
+                {tf === "1d" && "The dotted line is the previous close."}
+                {view.unpriced.length > 0 && ` ${view.unpriced.join(", ")} ${view.unpriced.length === 1 ? "has" : "have"} no price history and ${view.unpriced.length === 1 ? "is" : "are"} counted at today's value.`}
+              </p>
+            )}
           </Card>
 
-          <Card title="Your holdings" subtitle={`How each one moved ${
-            tf === "1d" ? "today" : tf === "max" ? "over its whole history" : `over the ${caption}`
-          }. Pick one to chart it on its own.`}>
+          <Card title="Your holdings">
             <div className="table-wrap">
               <table>
                 <thead>

@@ -19,24 +19,14 @@ const DASHBOARD_TIMEFRAMES: DashboardTimeframe[] = ["1d", "1w", "1m", "3m"];
 export type Mode = "invested" | "cash" | "liabilities";
 export const MODE_ORDER: Mode[] = ["invested", "cash", "liabilities"];
 
-const SHARE_CAVEAT = "Share counts are today’s — SimpleFIN does not report holdings history.";
-
-// The caveat has to change with the mode. The share-count caveat belongs to the
-// investments line only — today's synced share counts are assumed to have been
-// held throughout, which is what bounds the window to 90 days.
-export const CHART_MODES: Record<Mode, { label: string; dataKey: keyof ValuePoint; subtitle: string }> = {
-  invested: {
-    label: "Investments", dataKey: "invested",
-    subtitle: `Your holdings’ market value. Mutual funds move with the ETF that tracks the same index during the day, then settle to their real price at the close. A deposit does not move this line. ${SHARE_CAVEAT}`,
-  },
-  cash: {
-    label: "Cash", dataKey: "cash",
-    subtitle: "Your cash balances, walked back from today through the transactions posted since, so the line steps once a day. Brokerage cash is included.",
-  },
-  liabilities: {
-    label: "Liabilities", dataKey: "liabilities",
-    subtitle: "What you owe on credit accounts, walked back from today’s balance through the transactions posted since.",
-  },
+// The investments line assumes today's synced share counts were held throughout
+// (SimpleFIN reports no holdings history), which is what bounds the window to
+// 90 days. The cash and liabilities lines are walked back from today's balance
+// through the transactions posted since, so they step once a day.
+export const CHART_MODES: Record<Mode, { label: string; dataKey: keyof ValuePoint }> = {
+  invested: { label: "Investments", dataKey: "invested" },
+  cash: { label: "Cash", dataKey: "cash" },
+  liabilities: { label: "Liabilities", dataKey: "liabilities" },
 };
 
 /** Today's figure for a tab. Liabilities stay negative here, as they enter net worth. */
@@ -110,7 +100,7 @@ export function ValueCard({ summary, series, timeframe, onTimeframe }: {
       </div>
 
       <div className="row between center" style={{ marginBottom: 6 }}>
-        <div className="card-subtitle">{CHART_MODES[mode].subtitle}</div>
+        <div />
         <Segmented<DashboardTimeframe> value={tf} onChange={setTf}
           items={TIMEFRAMES.filter((t) => (DASHBOARD_TIMEFRAMES as string[]).includes(t.value))
             .map((t) => ({ value: t.value as DashboardTimeframe, label: t.label }))} />
