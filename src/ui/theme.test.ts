@@ -6,7 +6,7 @@ describe("theme preference", () => {
 
   it("defaults to light when nothing is stored or the stored value is junk", () => {
     expect(loadPref()).toBe("light");
-    localStorage.setItem("ledgerly.theme", "purple");
+    localStorage.setItem("tally.theme", "purple");
     expect(loadPref()).toBe("light");
   });
 

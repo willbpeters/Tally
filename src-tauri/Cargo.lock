@@ -2121,29 +2121,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ledgerly"
-version = "0.2.2"
-dependencies = [
- "anyhow",
- "base64 0.22.1",
- "chrono",
- "keyring",
- "percent-encoding",
- "reqwest 0.12.28",
- "rusqlite",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
- "tauri-plugin-opener",
- "tauri-plugin-process",
- "tauri-plugin-updater",
- "tempfile",
- "tokio",
-]
-
-[[package]]
 name = "libappindicator"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4106,6 +4083,29 @@ dependencies = [
  "pkg-config",
  "toml 0.8.2",
  "version-compare",
+]
+
+[[package]]
+name = "tally"
+version = "0.2.2"
+dependencies = [
+ "anyhow",
+ "base64 0.22.1",
+ "chrono",
+ "keyring",
+ "percent-encoding",
+ "reqwest 0.12.28",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "tauri-plugin-opener",
+ "tauri-plugin-process",
+ "tauri-plugin-updater",
+ "tempfile",
+ "tokio",
 ]
 
 [[package]]

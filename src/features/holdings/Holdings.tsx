@@ -33,7 +33,7 @@ const COLS: Column<Row>[] = [
 ];
 
 // v2: the column set changed, so old stored preferences are deliberately ignored.
-const STORAGE_KEY = "ledgerly.holdings.cols.v2";
+const STORAGE_KEY = "tally.holdings.cols.v2";
 const TOGGLEABLE = COLS.filter((c) => c.key !== "ticker");
 /** What fits comfortably beside the side panel. The rest are opt-in. */
 const DEFAULT_VISIBLE = ["shares", "lastPrice", "marketValue", "gain", "weight"];

@@ -146,6 +146,7 @@ These are the gaps a former Copilot user would notice first.
 ## Housekeeping
 
 - [ ] Optional: rename branch `master` → `main`.
-- [x] Rust crate renamed from `fintech-scaffold` to `ledgerly` (2026-10-14). The
-      app identifier `com.ledgerly.app` did not change, so the database and the
+- [x] Rust crate renamed from `fintech-scaffold` to `ledgerly` (2026-10-14), and
+      to `tally` with the identifier `com.tally.app` (2026-11-16; the app moves
+      the old `com.ledgerly.app` folder on first launch). Before that the
       saved SimpleFIN connection are where they were.

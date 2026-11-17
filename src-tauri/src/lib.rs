@@ -9,6 +9,7 @@ mod budget;
 mod market;
 mod backup;
 mod devicesync;
+mod legacy;
 
 use tauri::Manager;
 
@@ -20,7 +21,9 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .setup(|app| {
-            let dir = app.path().app_data_dir().expect("no app data dir");
+            // Before anything touches the folder: an install from before the
+            // rename is moved under the new identifier here.
+            let dir = legacy::data_dir(app.path().app_data_dir().expect("no app data dir"));
             std::fs::create_dir_all(&dir).expect("create app data dir");
             let paths = backup::Paths::new(&dir);
             // Before db::open: a staged restore must be swapped in first, and a

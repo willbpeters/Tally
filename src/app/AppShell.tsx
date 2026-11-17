@@ -6,7 +6,7 @@ import { InsightRail } from "./InsightRail";
 import { ErrorBoundary } from "../ui/ErrorBoundary";
 import { UpdateBanner } from "./UpdateBanner";
 
-const KEY = "ledgerly.insightRail";
+const KEY = "tally.insightRail";
 
 function loadOpen(): boolean {
   try { return localStorage.getItem(KEY) !== "closed"; } catch { return true; }

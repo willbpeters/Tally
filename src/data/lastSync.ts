@@ -1,6 +1,6 @@
 import type { SyncReport } from "../domain/types";
 
-const KEY = "ledgerly.lastSync";
+const KEY = "tally.lastSync";
 
 /**
  * The most recent sync report, kept so the side panel can still mention what a

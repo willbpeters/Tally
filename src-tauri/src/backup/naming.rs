@@ -9,7 +9,10 @@ use serde::Serialize;
 /// returning to (an update, a restore, a deliberate click).
 pub const KEEP_DAILY: usize = 14;
 
-const PREFIX: &str = "ledgerly-";
+const PREFIX: &str = "tally-";
+/// Backups written before the rename. They are listed, restored and pruned
+/// like any other; only new files get `PREFIX`.
+const LEGACY_PREFIX: &str = "ledgerly-";
 const EXT: &str = ".sqlite";
 /// `2026-10-14-093012-` — the fixed-width part of every name.
 const STAMP_LEN: usize = 18;
@@ -43,7 +46,7 @@ pub struct Parsed {
     pub kind: Kind,
 }
 
-/// `ledgerly-2026-10-14-093012-daily.sqlite`. An `n` above 1 appends `-n`,
+/// `tally-2026-10-14-093012-daily.sqlite`. An `n` above 1 appends `-n`,
 /// for two backups in the same second: `VACUUM INTO` refuses to overwrite.
 pub fn file_name(at: NaiveDateTime, kind: Kind, n: u32) -> String {
     let stem = format!("{PREFIX}{}-{}", at.format("%Y-%m-%d-%H%M%S"), kind.as_str());
@@ -57,7 +60,10 @@ pub fn file_name(at: NaiveDateTime, kind: Kind, n: u32) -> String {
 /// The inverse of `file_name`. Anything else in the folder parses to `None`,
 /// which is what keeps pruning away from files Tally did not write.
 pub fn parse(name: &str) -> Option<Parsed> {
-    let body = name.strip_prefix(PREFIX)?.strip_suffix(EXT)?;
+    let body = name
+        .strip_prefix(PREFIX)
+        .or_else(|| name.strip_prefix(LEGACY_PREFIX))?
+        .strip_suffix(EXT)?;
     if !body.is_ascii() || body.len() <= STAMP_LEN {
         return None;
     }
@@ -114,11 +120,11 @@ mod tests {
     fn a_name_carries_date_time_and_kind() {
         assert_eq!(
             file_name(at("2026-10-14 09:30:12"), Kind::Daily, 1),
-            "ledgerly-2026-10-14-093012-daily.sqlite"
+            "tally-2026-10-14-093012-daily.sqlite"
         );
         assert_eq!(
             file_name(at("2026-10-14 09:30:12"), Kind::PreMigration, 2),
-            "ledgerly-2026-10-14-093012-pre-migration-2.sqlite"
+            "tally-2026-10-14-093012-pre-migration-2.sqlite"
         );
     }
 
@@ -140,17 +146,31 @@ mod tests {
     }
 
     #[test]
+    fn a_backup_from_before_the_rename_still_parses() {
+        let parsed = parse("ledgerly-2026-10-14-093012-daily.sqlite").unwrap();
+        assert_eq!(parsed.kind, Kind::Daily);
+        assert_eq!(parsed.date, day("2026-10-14"));
+        // Old and new names sort and prune together.
+        let names = vec![
+            "ledgerly-2026-10-01-090000-daily.sqlite".to_string(),
+            file_name(at("2026-10-02 09:00:00"), Kind::Daily, 1),
+        ];
+        assert_eq!(to_prune(&names, 1), vec!["ledgerly-2026-10-01-090000-daily.sqlite".to_string()]);
+    }
+
+    #[test]
     fn files_that_are_not_backups_are_ignored() {
         for name in [
             "finance.sqlite",
             "notes.txt",
+            "tally-2026-10-14-093012-weekly.sqlite",
+            "tally-2026-13-14-093012-daily.sqlite",
+            "tally-2026-10-14-093012-daily-.sqlite",
+            "tally-2026-10-14-093012-daily-x.sqlite",
+            "tally-2026-10-14-093012-daily.sqlite.tmp",
+            "tally-2026-10-14-0930-daily.sqlite",
+            "tally-é026-10-14-093012-daily.sqlite",
             "ledgerly-2026-10-14-093012-weekly.sqlite",
-            "ledgerly-2026-13-14-093012-daily.sqlite",
-            "ledgerly-2026-10-14-093012-daily-.sqlite",
-            "ledgerly-2026-10-14-093012-daily-x.sqlite",
-            "ledgerly-2026-10-14-093012-daily.sqlite.tmp",
-            "ledgerly-2026-10-14-0930-daily.sqlite",
-            "ledgerly-é026-10-14-093012-daily.sqlite",
         ] {
             assert_eq!(parse(name), None, "{name} must not parse");
         }

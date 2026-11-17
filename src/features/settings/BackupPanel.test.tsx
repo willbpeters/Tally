@@ -4,8 +4,8 @@ import { BackupPanel, type BackupPanelProps } from "./BackupPanel";
 import type { BackupEntry, BackupStatus } from "../../domain/types";
 
 const entry: BackupEntry = {
-  file_name: "ledgerly-2026-10-14-093012-manual.sqlite",
-  path: "C:\\backups\\ledgerly-2026-10-14-093012-manual.sqlite",
+  file_name: "tally-2026-10-14-093012-manual.sqlite",
+  path: "C:\\backups\\tally-2026-10-14-093012-manual.sqlite",
   date: "2026-10-14", time: "09:30:12", kind: "manual", size: 1.5 * 1024 * 1024,
 };
 

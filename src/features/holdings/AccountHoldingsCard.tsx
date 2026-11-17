@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 
 /** Account ids the owner has closed on Holdings, so they stay closed next time. */
-export const COLLAPSED_KEY = "ledgerly.holdings.collapsed.v1";
+export const COLLAPSED_KEY = "tally.holdings.collapsed.v1";
 
 function loadCollapsed(): number[] {
   try {

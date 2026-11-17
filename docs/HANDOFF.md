@@ -3,42 +3,39 @@
 **Last updated:** 2026-11-02
 **Repo:** `%USERPROFILE%\Dev\Tally` → GitHub `willbpeters/Tally` (public: the updater reads its Releases without signing in), branch `master`
 
-**Renamed from Ledgerly to Tally on 2026-10-24** (0.1.3). Only what the owner
-sees changed. A second sweep on 2026-11-02 renamed everything that is not an
-identity: the npm package (`tally`; private, nothing reads it), the dev
-launcher `scripts/start-tally.cmd` (no shortcut pointed at the old name any
-more), the mockups in `docs/design/tally-dashboard/`, Rust test names, the
-`TALLY_DB` live-test variable, and the prose in the plans and specs. These
-still say "ledgerly" on purpose, because renaming them would lose data or
-settings, and each waits on the owner's decision:
-- the identifier `com.ledgerly.app`: the `%APPDATA%` folder (database,
-  backups, `device-sync.json`), the `%LOCALAPPDATA%` WebView2 profile that
-  holds localStorage, the taskbar AppUserModelID, and the folders the
-  uninstaller's "delete app data" box removes. It also sets the Installed
-  apps **Publisher**, which shows "ledgerly" (`bundle.publisher` could
-  override that alone).
-- the Credential Manager service `Ledgerly` (the saved SimpleFIN URL);
-- the `ledgerly.*` localStorage keys (theme, holdings columns and collapsed
-  accounts, insight rail, last sync, ask-before-remove);
-- the `ledgerly-` backup file prefix (`backup/naming.rs` lists, restores and
-  prunes only names with it, and every existing backup has it);
-- the Rust crate and binary `ledgerly`, which the installed copy runs as
-  `%LOCALAPPDATA%\Tally\ledgerly.exe`. Tauri's installer handles a binary
-  rename on update (it deletes the old exe and retargets the Start menu and
-  Desktop shortcuts, using the `MainBinaryName` it saved in the registry), but
-  not a **taskbar pin**, which would break. `scripts/set-version.mjs` matches
-  `name = "ledgerly"` in `Cargo.lock`, so it must change in the same commit;
-- `%USERPROFILE%\.tauri\ledgerly.key`, the update signing key's file name on
-  this machine (outside the repo; only the file name, harmless).
+**Renamed from Ledgerly to Tally.** The display name changed on 2026-10-24
+(0.1.3); everything else followed on 2026-11-16 (0.2.3). Nothing in the repo
+says "ledgerly" any more except the code that carries an older install over:
+- **App identifier** `com.tally.app` (was `com.ledgerly.app`). It names the
+  `%APPDATA%` folder (database, backups, `backup-settings.json`,
+  `device-sync.json`), the `%LOCALAPPDATA%` WebView2 profile and the taskbar
+  AppUserModelID. On launch, `legacy::data_dir` moves a `com.ledgerly.app`
+  folder beside the new one into place when the new one holds no database yet;
+  if the move fails it runs from the old folder and tries again next launch.
+  The old WebView2 profile is not moved: localStorage (theme, holdings
+  columns, collapsed accounts, insight rail, last sync, ask-before-remove)
+  starts fresh, and the installer hook deletes the old profile folder.
+- **Credential Manager service** `Tally` (was `Ledgerly`). `secrets::get`
+  adopts a secret found under the old service and removes it there.
+- **Backup file prefix** `tally-` (was `ledgerly-`). `backup/naming.rs`
+  parses both, so old backups are listed, restored and pruned as before.
+- **Rust crate and binary** `tally` / `tally.exe` (was `ledgerly`). Tauri's
+  installer retargets the Start menu and Desktop shortcuts on update and the
+  hook deletes a leftover `ledgerly.exe`; a **taskbar pin** of the old exe is
+  the one thing that breaks (unpin and pin again). `scripts/set-version.mjs`
+  matches `name = "tally"` in `Cargo.lock`.
+- `bundle.publisher` is "Will Peters", which the Installed apps list shows.
+- `%USERPROFILE%\.tauri\ledgerly.key` is still the signing key's file name on
+  this machine (outside the repo; the secret's content is what CI uses).
 
 Device sync has no old name in it: the folder is "Tally Sync" and the change
 files carry none. The GitHub repo was renamed to `willbpeters/Tally`; GitHub
 redirects the old `willbpeters/Ledgerly` address, which copies from before
 0.1.3 still use to find updates, so **never create a new repo named
 `Ledgerly`** on this account. The installer hook
-`src-tauri/windows/hooks.nsh` removes an old Ledgerly install (program,
-shortcuts, Installed apps entry) after Tally installs, because the installer
-files apps under their display name and would otherwise leave both.
+`src-tauri/windows/hooks.nsh` also removes a pre-0.1.3 Ledgerly install
+(program, shortcuts, Installed apps entry) after Tally installs, because the
+installer files apps under their display name and would otherwise leave both.
 
 ## What this project is
 
@@ -412,7 +409,7 @@ budgeting and spending module.
   exposure, so it shares that card's calendar and exclusions. Maths is pure in
   `src/domain/drawdown.ts`.
 - **Holdings' per-account cards** open and close from their header; closed
-  account ids persist in localStorage (`ledgerly.holdings.collapsed.v1`).
+  account ids persist in localStorage (`tally.holdings.collapsed.v1`).
 - **Price history**: `prices_backfill` stores **two years of daily closes**
   per security (`HISTORY_RANGE`), run once when `prices_history_depth` shows
   the database has fewer than `MIN_HISTORY_DAYS` (200). This is the
@@ -426,7 +423,7 @@ budgeting and spending module.
   realized/unrealized gains, positions → holdings aggregation, portfolio
   summary with day change, allocation, value series.
 - **Theme**: warm off-white paper by default, with dark and follow-Windows in
-  Settings, remembered in `localStorage` under `ledgerly.theme`. Colours are CSS
+  Settings, remembered in `localStorage` under `tally.theme`. Colours are CSS
   variables on `:root` and `:root[data-theme="dark"]`; charts read the same
   tokens so they re-theme too.
 - **Type**: Instrument Sans for the interface, Newsreader for the headline
@@ -449,7 +446,7 @@ budgeting and spending module.
   connection" takes a fresh setup token in place (backing up first, since a sync
   removes accounts the token no longer shares).
 - **Backups** (`src-tauri/src/backup/`): a checked `VACUUM INTO` copy in
-  `%APPDATA%\com.ledgerly.app\backups\` at the first launch each day, before any
+  `%APPDATA%\com.tally.app\backups\` at the first launch each day, before any
   migration, before any restore, and on "Back up now"; the newest 14 dailies are
   kept and every other kind is kept for good. An optional extra folder gets a
   copy of each. **Restore** stages the chosen file as
@@ -733,7 +730,7 @@ pattern (manual / CSV / SimpleFIN), `secrets.rs`, and the single DB module.
   commands on separate lines or join with `;`.
 - **Money is stored/handled as `f64`** (a deliberate v1 simplification). Round at
   display time via the `money()` / `pct()` helpers.
-- **Database location:** `%APPDATA%\com.ledgerly.app\finance.sqlite` — currently
+- **Database location:** `%APPDATA%\com.tally.app\finance.sqlite` — currently
   **unencrypted**. The schema is at `user_version` **11** (v9 adds `bank_transaction_splits`, v10 adds
   `recurring_dismissed`, v11 adds `goals`); migrations are
   version-gated in `db.rs`, so bump `TARGET_VERSION` and add a block to change it.
@@ -792,7 +789,7 @@ pattern (manual / CSV / SimpleFIN), `secrets.rs`, and the single DB module.
   `https://demo:demo@beta-bridge.simplefin.org/simplefin`. The demo has three
   cash accounts and no holdings, so holdings parsing is covered by fixtures.
 - **The SimpleFIN access URL lives in Windows Credential Manager** under service
-  `Ledgerly` (kept through the rename), key `simplefin_access_url` — never in SQLite. Deleting the database
+  `Tally` (a copy under the old `Ledgerly` service is adopted on first read), key `simplefin_access_url` — never in SQLite. Deleting the database
   does **not** disconnect SimpleFIN; use Disconnect in Settings.
 - **Charts read CSS variables**, so the theme must be applied before they first
   render. `theme.tsx` sets `data-theme` at module load for exactly this reason —
@@ -829,8 +826,7 @@ E. **CI** — no `.github/workflows` yet. A GitHub Action on push running
    `npm test`, `npx tsc --noEmit` and `cargo test` on `windows-latest`.
 F. **Hardening / tidy-up:** the CSP is set as of 2026-11-16 (`csp` for the
    built app; `devCsp` adds `unsafe-inline` scripts and the Vite websocket
-   that hot reload needs). (The crate rename from `fintech-scaffold` to
-   `ledgerly` is done.)
+   that hot reload needs). (The crate is `tally`.)
    Two component tests time out when the machine is busy
    (seen in `Activity.test.tsx`); raise their timeout or make them cheaper.
    Stooq's unused `parse_daily_csv` / `daily_url` warn on every build.

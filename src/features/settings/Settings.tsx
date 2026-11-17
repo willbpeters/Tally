@@ -28,7 +28,7 @@ export function Settings() {
       <Card title="About">
         <div className="grid" style={{ gap: 4, fontSize: 13 }}>
           <div><span className="muted">Version</span> · Tally {version ?? ""}</div>
-          <div><span className="muted">Data</span> · stored locally in <code>%APPDATA%\com.ledgerly.app\finance.sqlite</code>, backed up to the <code>backups</code> folder beside it</div>
+          <div><span className="muted">Data</span> · stored locally in <code>%APPDATA%\com.tally.app\finance.sqlite</code>, backed up to the <code>backups</code> folder beside it</div>
           <div><span className="muted">Coming later</span> · encrypted database + app lock</div>
         </div>
       </Card>

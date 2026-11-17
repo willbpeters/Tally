@@ -25,7 +25,7 @@ export function bumpCargoToml(text, version) {
 }
 
 export function bumpCargoLock(text, version) {
-  return text.replace(/(name = "ledgerly"\r?\nversion = )"[^"]*"/, `$1"${version}"`);
+  return text.replace(/(name = "tally"\r?\nversion = )"[^"]*"/, `$1"${version}"`);
 }
 
 const FILES = [

@@ -89,7 +89,7 @@ export function useOfferSplitUndo() {
   };
 }
 
-const ASK_KEY = "ledgerly.askBeforeRemove";
+const ASK_KEY = "tally.askBeforeRemove";
 
 /** Whether to ask before removing a transaction. On unless the owner chose
  *  "don't ask again". Storage can be unavailable; then it simply asks. */

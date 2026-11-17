@@ -3,7 +3,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 export type ThemePref = "light" | "dark" | "system";
 export type ResolvedTheme = "light" | "dark";
 
-const KEY = "ledgerly.theme";
+const KEY = "tally.theme";
 
 /**
  * Light is the default: the off-white palette is the designed look, so a fresh

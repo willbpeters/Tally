@@ -164,7 +164,7 @@ mod tests {
         let conn = populated_db(&paths);
         let made = create(&conn, &paths.backups(), None, Kind::Manual, test_at("2026-10-14 09:30:12")).unwrap();
 
-        assert!(made.file.ends_with("ledgerly-2026-10-14-093012-manual.sqlite"));
+        assert!(made.file.ends_with("tally-2026-10-14-093012-manual.sqlite"));
         assert_eq!(accounts_in(&made.file), 1);
         assert_eq!(made.warning, None);
     }
@@ -176,7 +176,7 @@ mod tests {
         let at = test_at("2026-10-14 09:30:12");
         create(&conn, &paths.backups(), None, Kind::Manual, at).unwrap();
         let second = create(&conn, &paths.backups(), None, Kind::Manual, at).unwrap();
-        assert!(second.file.ends_with("ledgerly-2026-10-14-093012-manual-2.sqlite"));
+        assert!(second.file.ends_with("tally-2026-10-14-093012-manual-2.sqlite"));
     }
 
     #[test]

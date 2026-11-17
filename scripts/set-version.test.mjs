@@ -22,13 +22,13 @@ describe("set-version", () => {
   });
 
   it("bumps only the [package] version in Cargo.toml", () => {
-    const toml = '[package]\nname = "ledgerly"\nversion = "0.1.0"\n\n[dependencies]\nfoo = { version = "1" }\n';
+    const toml = '[package]\nname = "tally"\nversion = "0.1.0"\n\n[dependencies]\nfoo = { version = "1" }\n';
     expect(bumpCargoToml(toml, "0.2.0")).toBe(toml.replace('version = "0.1.0"', 'version = "0.2.0"'));
   });
 
-  it("bumps only ledgerly's entry in Cargo.lock", () => {
-    const lock = '[[package]]\nname = "itoa"\nversion = "0.1.0"\n\n[[package]]\nname = "ledgerly"\nversion = "0.1.0"\n';
+  it("bumps only tally's entry in Cargo.lock", () => {
+    const lock = '[[package]]\nname = "itoa"\nversion = "0.1.0"\n\n[[package]]\nname = "tally"\nversion = "0.1.0"\n';
     expect(bumpCargoLock(lock, "0.2.0"))
-      .toBe('[[package]]\nname = "itoa"\nversion = "0.1.0"\n\n[[package]]\nname = "ledgerly"\nversion = "0.2.0"\n');
+      .toBe('[[package]]\nname = "itoa"\nversion = "0.1.0"\n\n[[package]]\nname = "tally"\nversion = "0.2.0"\n');
   });
 });

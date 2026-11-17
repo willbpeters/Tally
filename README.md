@@ -156,11 +156,8 @@ Pick whichever fits you. You can mix and match.
 
 | What | Where |
 | --- | --- |
-| Your data | `%APPDATA%\com.ledgerly.app\finance.sqlite` |
-| Automatic backups | `%APPDATA%\com.ledgerly.app\backups\` |
-
-(The folder is named after Tally's original name, *Ledgerly*, so that older
-installs keep working.)
+| Your data | `%APPDATA%\com.tally.app\finance.sqlite` |
+| Automatic backups | `%APPDATA%\com.tally.app\backups\` |
 
 **What leaves your computer.** Only three things ever go out over the
 internet, and none of them includes your balances or transactions:
