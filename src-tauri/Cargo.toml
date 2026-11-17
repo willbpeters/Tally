@@ -1,6 +1,6 @@
 [package]
 name = "tally"
-version = "0.2.2"
+version = "0.2.3"
 description = "Local-first personal finance desktop app"
 authors = ["Will Peters"]
 license = "MIT"
